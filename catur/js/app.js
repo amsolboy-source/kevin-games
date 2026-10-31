@@ -30,6 +30,7 @@ class ChessterApp {
   init() {
     this.loadUser();
     this.setupEventListeners();
+    this.setupNavigationGuard();
     this.renderNavigation();
 
     if (!this.user) {
@@ -1054,6 +1055,117 @@ class ChessterApp {
     document.getElementById('training-btn-reset').addEventListener('click', () => this.renderTraining());
     document.getElementById('training-btn-change-coach').addEventListener('click', () => this.openCoachSelector());
     document.getElementById('training-btn-back-home').addEventListener('click', () => this.switchView('home'));
+  }
+
+  // --- NAVIGATION GUARD (PREVENT ACCIDENTAL BACK/EXIT DURING PLAY) ---
+  isMatchInProgress() {
+    const mmOverlay = document.getElementById('matchmaking-overlay');
+    if (mmOverlay && mmOverlay.classList.contains('active')) {
+      return true;
+    }
+    const arenaView = document.getElementById('arena-view');
+    const isArenaActive = arenaView && arenaView.classList.contains('active');
+    if (isArenaActive && this.game && !this.game.isGameOver().over) {
+      return true;
+    }
+    return false;
+  }
+
+  showNavigationBlockedToast(message) {
+    let toast = document.getElementById('chesster-nav-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'chesster-nav-toast';
+      toast.style.cssText = `
+        position: fixed;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #182234;
+        color: #f8fafc;
+        border: 2px solid #ef4444;
+        padding: 12px 22px;
+        border-radius: 14px;
+        box-shadow: 0 12px 35px rgba(0,0,0,0.7), 0 0 20px rgba(239,68,68,0.35);
+        font-size: 0.95rem;
+        font-weight: 700;
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        max-width: 90vw;
+        text-align: center;
+        pointer-events: none;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        opacity: 0;
+      `;
+      document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<span>🛑</span><span>${message}</span>`;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+
+    clearTimeout(this._navToastTimer);
+    this._navToastTimer = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(-10px)';
+    }, 3200);
+  }
+
+  setupNavigationGuard() {
+    // History trap awal
+    try {
+      window.history.pushState({ chesster: 'root' }, '', window.location.href);
+    } catch (e) {}
+
+    window.addEventListener('popstate', (e) => {
+      // 1. Jika pertandingan sedang berjalan, tombol Back/Forward browser DIBLOKIR total!
+      if (this.isMatchInProgress()) {
+        window.history.pushState({ chesster: 'match-locked' }, '', window.location.href);
+        this.showNavigationBlockedToast("Pertandingan sedang berlangsung! Tombol kembali/maju browser dinonaktifkan agar permainan tidak hilang. Selesaikan pertandingan atau gunakan tombol 'Menyerah'.");
+        if (window.chessterAudio && typeof window.chessterAudio.playIllegal === 'function') {
+          window.chessterAudio.playIllegal();
+        }
+        return;
+      }
+
+      // 2. Jika di layar arena (setelah pertandingan selesai) atau mode training, tombol Back mengembalikan ke menu home Chesster
+      const arenaView = document.getElementById('arena-view');
+      const trainingView = document.getElementById('training-view');
+      if ((arenaView && arenaView.classList.contains('active')) || (trainingView && trainingView.classList.contains('active'))) {
+        window.history.pushState({ chesster: 'root' }, '', window.location.href);
+        this.switchView('home');
+        return;
+      }
+
+      // 3. Jika di menu utama Chesster, tahan agar tidak keluar tanpa sengaja
+      window.history.pushState({ chesster: 'root' }, '', window.location.href);
+      this.showNavigationBlockedToast("Klik tombol '🎮 Kevin Games' di pojok kiri atas jika ingin kembali ke halaman utama.");
+    });
+
+    // Cegah penutupan tab / reload saat pertandingan catur sedang berlangsung
+    window.addEventListener('beforeunload', (e) => {
+      if (this.isMatchInProgress()) {
+        e.preventDefault();
+        e.returnValue = 'Pertandingan catur sedang berjalan! Keluar sekarang akan membatalkan pertandingan.';
+        return e.returnValue;
+      }
+    });
+
+    // Intercept link kembali ke landing page Kevin Games di navbar jika sedang bertanding
+    const navHomeLink = document.querySelector('a[href="../index.html"]');
+    if (navHomeLink) {
+      navHomeLink.addEventListener('click', (e) => {
+        if (this.isMatchInProgress()) {
+          e.preventDefault();
+          const yakin = confirm("⚠️ Pertandingan catur sedang berjalan! Jika keluar sekarang, kamu akan dianggap menyerah dan rating ELO akan berkurang. Yakin ingin kembali ke Kevin Games?");
+          if (yakin) {
+            this.handleGameOver({ over: true, winner: 'b', reason: 'Pemain Meninggalkan Laga' });
+            window.location.href = '../index.html';
+          }
+        }
+      });
+    }
   }
 }
 

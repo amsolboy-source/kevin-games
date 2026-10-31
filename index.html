@@ -153,5 +153,37 @@
 
   <footer>&copy; 2026 Kevin Games &middot; Dibuat oleh Kevin dengan bantuan AI</footer>
 </div>
+
+<script>
+  // Proteksi Navigasi: Halaman utama tidak akan tertutup atau hilang saat tombol Back/Previous browser ditekan
+  (function() {
+    try {
+      history.pushState({ kg: 'landing' }, '', location.href);
+      window.addEventListener('popstate', function() {
+        history.pushState({ kg: 'landing' }, '', location.href);
+        tampilkanNotifikasi('🏠 Kamu sudah berada di halaman utama Kevin Games!');
+      });
+    } catch(e) {}
+
+    let toastTimer = null;
+    function tampilkanNotifikasi(pesan) {
+      let toast = document.getElementById('kg-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'kg-toast';
+        toast.style.cssText = 'position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#1b2145;color:#eef0ff;border:1px solid #7c5cff;padding:11px 22px;border-radius:14px;box-shadow:0 12px 30px rgba(0,0,0,0.55);font-size:14px;font-weight:700;z-index:99999;display:flex;align-items:center;gap:10px;pointer-events:none;transition:opacity .25s ease, transform .25s ease;opacity:0;';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = pesan;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(8px)';
+      }, 2500);
+    }
+  })();
+</script>
 </body>
 </html>
