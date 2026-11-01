@@ -317,6 +317,12 @@ class ChessterApp {
     const kingCoords = inCheck ? this.game.findKing(this.game.turn) : null;
     const lastMove = this.game.history.length > 0 ? this.game.history[this.game.history.length - 1] : null;
 
+    // Deteksi opsi Rokade jika Raja dipilih
+    const selectedPiece = this.selectedSquare ? this.game.board[this.selectedSquare.r][this.selectedSquare.c] : null;
+    const isKingSelected = selectedPiece && selectedPiece.type === 'k' && selectedPiece.color === this.playerColor;
+    const castleKingside = isKingSelected ? this.legalMovesForSelected.find(m => m.isCastlingKingside) : null;
+    const castleQueenside = isKingSelected ? this.legalMovesForSelected.find(m => m.isCastlingQueenside) : null;
+
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
         const sq = document.createElement('div');
@@ -365,12 +371,36 @@ class ChessterApp {
           sq.innerHTML += pieceSvg;
         }
 
-        // Move hint indicators
-        const isLegalDest = this.legalMovesForSelected.some(m => m.to.r === r && m.to.c === c);
-        if (isLegalDest) {
+        // Indikator Rokade Khusus (Benteng dan Raja)
+        if (isKingSelected && r === this.selectedSquare.r && c === 6 && castleKingside) {
           const hint = document.createElement('div');
-          hint.className = piece ? 'hint-capture' : 'hint-dot';
+          hint.className = 'hint-castle';
+          hint.innerHTML = '<span>🏰</span>';
+          hint.title = 'Rokade Sayap Raja (O-O)';
           sq.appendChild(hint);
+        } else if (isKingSelected && r === this.selectedSquare.r && c === 2 && castleQueenside) {
+          const hint = document.createElement('div');
+          hint.className = 'hint-castle';
+          hint.innerHTML = '<span>🏰</span>';
+          hint.title = 'Rokade Sayap Menteri (O-O-O)';
+          sq.appendChild(hint);
+        } else {
+          // Move hint indicators standar
+          const isLegalDest = this.legalMovesForSelected.some(m => m.to.r === r && m.to.c === c);
+          if (isLegalDest) {
+            const hint = document.createElement('div');
+            hint.className = piece ? 'hint-capture' : 'hint-dot';
+            sq.appendChild(hint);
+          }
+        }
+
+        // Highlight Benteng kawan yang siap diajak rokade
+        if (isKingSelected && r === this.selectedSquare.r && c === 7 && castleKingside) {
+          sq.classList.add('castle-eligible-rook');
+          sq.title = 'Klik Benteng ini untuk Rokade Sayap Raja!';
+        } else if (isKingSelected && r === this.selectedSquare.r && c === 0 && castleQueenside) {
+          sq.classList.add('castle-eligible-rook');
+          sq.title = 'Klik Benteng ini untuk Rokade Sayap Menteri!';
         }
 
         // Move quality badge (Brilliant !! / Best ! / Blunder ??)
@@ -392,11 +422,36 @@ class ChessterApp {
 
     // If already selected a piece, check if clicking on legal destination
     if (this.selectedSquare) {
-      const matchMove = this.legalMovesForSelected.find(m => m.to.r === r && m.to.c === c);
+      const selectedPiece = this.game.board[this.selectedSquare.r][this.selectedSquare.c];
+
+      // 1. Cek langkah legal biasa
+      let matchMove = this.legalMovesForSelected.find(m => m.to.r === r && m.to.c === c);
+
+      // 2. ROKADE: Jika Raja dipilih lalu pemain mengklik Benteng sendiri:
+      if (!matchMove && selectedPiece && selectedPiece.type === 'k' && selectedPiece.color === this.playerColor) {
+        if (c === 7) {
+          matchMove = this.legalMovesForSelected.find(m => m.isCastlingKingside);
+        } else if (c === 0) {
+          matchMove = this.legalMovesForSelected.find(m => m.isCastlingQueenside);
+        }
+      }
+
+      // 3. ROKADE: Jika Benteng dipilih lalu pemain mengklik Raja sendiri:
+      if (!matchMove && selectedPiece && selectedPiece.type === 'r' && selectedPiece.color === this.playerColor) {
+        if (clickedPiece && clickedPiece.type === 'k' && clickedPiece.color === this.playerColor) {
+          const kingMoves = this.game.getLegalMoves({ r: this.selectedSquare.r, c: 4 });
+          if (this.selectedSquare.c === 7) {
+            matchMove = kingMoves.find(m => m.isCastlingKingside);
+          } else if (this.selectedSquare.c === 0) {
+            matchMove = kingMoves.find(m => m.isCastlingQueenside);
+          }
+        }
+      }
+
       if (matchMove) {
         // Check for pawn promotion
-        const piece = this.game.board[this.selectedSquare.r][this.selectedSquare.c];
-        if (piece && piece.type === 'p' && (r === 0 || r === 7)) {
+        const piece = this.game.board[matchMove.from.r][matchMove.from.c];
+        if (piece && piece.type === 'p' && (matchMove.to.r === 0 || matchMove.to.r === 7)) {
           this.pendingPromotion = matchMove;
           this.openPromotionModal();
           return;
@@ -431,30 +486,34 @@ class ChessterApp {
     const enemyColor = this.playerColor === 'w' ? 'b' : 'w';
     const isAttacked = this.game.isSquareAttacked(move.to.r, move.to.c, enemyColor);
 
-    const pieceValues = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+    const pieceValues = { p: 100, n: 320, b: 335, r: 500, q: 950, k: 20000 };
     const pieceVal = pieceValues[piece.type] || 100;
     const capturedVal = move.captured ? (pieceValues[move.captured.type] || 100) : 0;
 
-    // 1. BRILLIANT:
-    // KHUSUS PENGORBANAN JENIUS (Genius Sacrifice) sesuai permintaan user!
-    // Syarat: Mengorbankan perwira berharga di petak terancam, dan hasil kalkulasinya tetap menang/unggul!
-    const isGeniusSacrifice = isAttacked && pieceVal > capturedVal && pieceVal >= 300 && (isBestMove || diff >= -40 || evalAfter >= 40);
+    // 1. BRILLIANT (!!):
+    // Syarat Pengorbanan Jenius yang SANGAT KETAT & SUSAH DIDAPATKAN:
+    // a. Harus mengorbankan perwira berharga (Kuda, Gajah, Benteng, Menteri: pieceVal >= 320).
+    // b. Bukan pertukaran seimbang, melainkan murni pengorbanan material (pieceVal >= capturedVal + 200).
+    // c. Petak tujuan diserang oleh bidak musuh (isAttacked).
+    // d. WAJIB merupakan langkah #1 terbaik engine (isBestMove)!
+    // e. Menghasilkan keunggulan besar / ancaman menang (evalAfter >= 150 atau skak).
+    // f. Evaluasi posisi pemain tidak runtuh (diff >= -20).
+    const isSacrifice = isAttacked && pieceVal >= 320 && (pieceVal >= capturedVal + 200);
+    const hasBigAdvantage = evalAfter >= 150 || this.game.isCheck(enemyColor) || (evalAfter > evalBefore + 60);
+    const isBrilliantSacrifice = isBestMove && isSacrifice && hasBigAdvantage && diff >= -20;
 
-    if (isGeniusSacrifice) {
+    if (isBrilliantSacrifice) {
       return 'brilliant';
     }
 
-    // 2. BLUNDER (Salah langkah):
-    // - Large negative evaluation swing (diff <= -170)
-    // - Or leaving a major piece hanging without compensation
-    const isHangingPiece = isAttacked && pieceVal > (capturedVal + 100) && diff <= -100;
-    if (diff <= -170 || isHangingPiece) {
+    // 2. BLUNDER (??):
+    const isHangingPiece = isAttacked && pieceVal >= 320 && pieceVal > (capturedVal + 200) && diff <= -180;
+    if (diff <= -240 || isHangingPiece) {
       return 'blunder';
     }
 
-    // 3. LANGKAH TERBAIK (Best Move dengan icon Bintang Hijau Olive):
-    // - Engine's best move, or position is improved (diff >= 25)
-    if (isBestMove || diff >= 25) {
+    // 3. BEST MOVE (!):
+    if (isBestMove || diff >= 30) {
       return 'best';
     }
 
@@ -479,17 +538,23 @@ class ChessterApp {
 
     const coach = getCoachById(this.user.coachId);
 
-    if (quality === 'brilliant') {
+    // Castling audio & feedback
+    if (move.isCastlingKingside || move.isCastlingQueenside) {
+      window.chessterAudio.playCastle();
+      this.showNavigationBlockedToast("🏰 ROKADE (Castling) Berhasil! Raja aman dan benteng aktif.");
+      this.updateCoachSpeech("Rokade yang sangat rapi! Rajamu kini aman terlindung di sudut benteng.", 'good');
+    } else if (quality === 'brilliant') {
       res.san += '!!';
       window.chessterAudio.playBrilliant();
-      this.updateCoachSpeech(`🌟 PENGORBANAN JENIUS!! BRILIAN!! Wow, anda teliti sekali mengorbankan perwira demi serangan mematikan!`, 'brilliant');
+      this.showNavigationBlockedToast("🌟 BRILLIANT MOVE (!!) Pengorbanan jenius membuka jalan kemenangan!");
+      this.updateCoachSpeech(`🌟 PENGORBANAN JENIUS (BRILIAN !!) Langkah "${res.san}" mengorbankan perwira berharga demi serangan mematikan!`, 'brilliant');
     } else if (quality === 'best') {
       if (res.captured) {
         window.chessterAudio.playCapture();
       } else {
         window.chessterAudio.playMove();
       }
-      this.updateCoachSpeech(`⭐ LANGKAH TERBAIK! Wow, anda teliti sekali! Langkah paling optimal dan akurat di posisi ini.`, 'best');
+      this.updateCoachSpeech(`⭐ LANGKAH TERBAIK! Langkah paling optimal dan akurat di posisi ini.`, 'best');
     } else if (quality === 'blunder') {
       res.san += '??';
       window.chessterAudio.playBlunder();
@@ -828,7 +893,14 @@ class ChessterApp {
     this.activeCoach = getCoachById(coachId);
     this.saveUser();
     this.renderHome();
-    alert(`Selamat! Kamu kini dilatih oleh ${this.activeCoach.name}. "${this.activeCoach.quote}"`);
+
+    // Jika sedang di layar latihan, otomatis mulai tanding baru dengan coach terpilih
+    const trainingView = document.getElementById('training-view');
+    if (trainingView && trainingView.classList.contains('active')) {
+      this.renderTraining();
+    }
+
+    this.showNavigationBlockedToast(`🎓 Pelatih diubah ke ${this.activeCoach.name}! "${this.activeCoach.quote}"`);
   }
 
   // --- REGISTRATION MODAL ---
@@ -887,41 +959,42 @@ class ChessterApp {
     }
   }
 
-  // --- BERLATIH DENGAN COACH (TRAINING MODE) ---
+  // --- BERLATIH DENGAN COACH (TANDING PENUH DARI LANGKAH AWAL) ---
   renderTraining() {
-    const coach = getCoachById(this.user.coachId);
+    const coach = getCoachById(this.user.coachId || 'magnus');
+    this.activeCoach = coach;
+
     const coachNameEl = document.getElementById('training-coach-name');
     const coachAvatarEl = document.getElementById('training-coach-avatar');
     const coachBioEl = document.getElementById('training-coach-bio');
     const coachQuoteEl = document.getElementById('training-coach-quote');
+    const turnBadge = document.getElementById('training-turn-badge');
+    const hintBox = document.getElementById('training-puzzle-hint');
+    const logBox = document.getElementById('training-move-log');
 
-    if (coachNameEl) coachNameEl.textContent = coach.name;
+    if (coachNameEl) coachNameEl.textContent = `Coach ${coach.name}`;
     if (coachAvatarEl) coachAvatarEl.innerHTML = coach.avatarSvg;
     if (coachBioEl) coachBioEl.textContent = coach.bio;
-    if (coachQuoteEl) coachQuoteEl.textContent = `"${coach.quote}"`;
+    if (coachQuoteEl) {
+      coachQuoteEl.textContent = `Coach ${coach.name}: "${coach.reactions.gameStart || coach.quote}"`;
+    }
+    if (turnBadge) {
+      turnBadge.className = 'badge-result badge-draw';
+      turnBadge.textContent = 'Giliran Kamu (Putih)';
+    }
+    if (hintBox) {
+      hintBox.textContent = `💡 Kuasai petak pusat (e4, d4, e5, d5), kembangkan Kuda dan Gajah, lalu lakukan Rokade untuk mengamankan Rajamu!`;
+    }
+    if (logBox) {
+      logBox.innerHTML = `<div><strong>Laga Latihan vs Coach ${coach.name}</strong> dimulai dari Langkah 1.</div>`;
+    }
 
-    // Load coach puzzle
-    const puzzle = coach.trainingPuzzles && coach.trainingPuzzles[0]
-      ? coach.trainingPuzzles[0]
-      : {
-          title: "Taktik Sentral: Serangan Raja",
-          description: "Temukan langkah terbaik untuk menekan formasi lawan.",
-          fen: "r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 4",
-          solution: ["e1g1"],
-          hint: "Amankan raja dengan rokade (O-O) sebelum memulai serangan badai!"
-        };
-
-    this.currentPuzzle = puzzle;
-    const puzzleTitleEl = document.getElementById('training-puzzle-title');
-    const puzzleDescEl = document.getElementById('training-puzzle-desc');
-    const puzzleHintEl = document.getElementById('training-puzzle-hint');
-
-    if (puzzleTitleEl) puzzleTitleEl.textContent = puzzle.title;
-    if (puzzleDescEl) puzzleDescEl.textContent = puzzle.description;
-    if (puzzleHintEl) puzzleHintEl.textContent = `💡 Hint Coach ${coach.name}: ${puzzle.hint}`;
-
-    this.trainingGame = new ChessterGame(puzzle.fen);
+    // Mulai permainan baru dari awal babak (Langkah 1)
+    this.trainingGame = new ChessterGame();
     this.trainingSelectedSquare = null;
+    this.trainingBotThinking = false;
+    this.trainingHintMove = null;
+
     this.renderTrainingBoard();
   }
 
@@ -931,6 +1004,15 @@ class ChessterApp {
 
     boardEl.innerHTML = '';
     const legals = this.trainingSelectedSquare ? this.trainingGame.getLegalMoves(this.trainingSelectedSquare) : [];
+    const inCheck = this.trainingGame.isCheck();
+    const kingCoords = inCheck ? this.trainingGame.findKing(this.trainingGame.turn) : null;
+    const lastMove = this.trainingGame.history.length > 0 ? this.trainingGame.history[this.trainingGame.history.length - 1] : null;
+
+    // Deteksi opsi Rokade jika Raja dipilih
+    const selectedPiece = this.trainingSelectedSquare ? this.trainingGame.board[this.trainingSelectedSquare.r][this.trainingSelectedSquare.c] : null;
+    const isKingSelected = selectedPiece && selectedPiece.type === 'k' && selectedPiece.color === 'w';
+    const castleKingside = isKingSelected ? legals.find(m => m.isCastlingKingside) : null;
+    const castleQueenside = isKingSelected ? legals.find(m => m.isCastlingQueenside) : null;
 
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
@@ -942,16 +1024,74 @@ class ChessterApp {
           sq.classList.add('selected');
         }
 
+        if (lastMove) {
+          const fromCoords = this.trainingGame.squareToCoords(lastMove.from);
+          const toCoords = this.trainingGame.squareToCoords(lastMove.to);
+          if ((fromCoords.r === r && fromCoords.c === c) || (toCoords.r === r && toCoords.c === c)) {
+            sq.classList.add('last-move');
+          }
+        }
+
+        if (kingCoords && kingCoords.r === r && kingCoords.c === c) {
+          sq.classList.add('in-check');
+        }
+
+        // Koordinat papan
+        if (c === 7) {
+          const rankLabel = document.createElement('span');
+          rankLabel.className = 'square-coord coord-rank';
+          rankLabel.textContent = 8 - r;
+          sq.appendChild(rankLabel);
+        }
+        if (r === 7) {
+          const fileLabel = document.createElement('span');
+          fileLabel.className = 'square-coord coord-file';
+          fileLabel.textContent = String.fromCharCode('a'.charCodeAt(0) + c);
+          sq.appendChild(fileLabel);
+        }
+
         const piece = this.trainingGame.board[r][c];
         if (piece) {
           sq.innerHTML += getPieceSvg(piece.color, piece.type);
         }
 
-        const isLegalDest = legals.some(m => m.to.r === r && m.to.c === c);
-        if (isLegalDest) {
-          const hint = document.createElement('div');
-          hint.className = piece ? 'hint-capture' : 'hint-dot';
-          sq.appendChild(hint);
+        // Indikator Rokade Khusus (Benteng dan Raja)
+        if (isKingSelected && r === 7 && c === 6 && castleKingside) {
+          const castleHint = document.createElement('div');
+          castleHint.className = 'hint-castle';
+          castleHint.innerHTML = '<span>🏰</span>';
+          castleHint.title = 'Rokade Sayap Raja (O-O)';
+          sq.appendChild(castleHint);
+        } else if (isKingSelected && r === 7 && c === 2 && castleQueenside) {
+          const castleHint = document.createElement('div');
+          castleHint.className = 'hint-castle';
+          castleHint.innerHTML = '<span>🏰</span>';
+          castleHint.title = 'Rokade Sayap Menteri (O-O-O)';
+          sq.appendChild(castleHint);
+        } else {
+          const isLegalDest = legals.some(m => m.to.r === r && m.to.c === c);
+          if (isLegalDest) {
+            const hint = document.createElement('div');
+            hint.className = piece ? 'hint-capture' : 'hint-dot';
+            sq.appendChild(hint);
+          }
+        }
+
+        // Highlight Benteng yang siap diajak rokade
+        if (isKingSelected && r === 7 && c === 7 && castleKingside) {
+          sq.classList.add('castle-eligible-rook');
+          sq.title = 'Klik benteng ini untuk Rokade!';
+        } else if (isKingSelected && r === 7 && c === 0 && castleQueenside) {
+          sq.classList.add('castle-eligible-rook');
+          sq.title = 'Klik benteng ini untuk Rokade!';
+        }
+
+        // Highlight Petunjuk Hint dari Coach
+        if (this.trainingHintMove) {
+          if ((this.trainingHintMove.from.r === r && this.trainingHintMove.from.c === c) ||
+              (this.trainingHintMove.to.r === r && this.trainingHintMove.to.c === c)) {
+            sq.style.boxShadow = 'inset 0 0 0 3px #10b981, 0 0 16px rgba(16, 185, 129, 0.7)';
+          }
         }
 
         sq.addEventListener('click', () => this.handleTrainingSquareClick(r, c));
@@ -961,39 +1101,224 @@ class ChessterApp {
   }
 
   handleTrainingSquareClick(r, c) {
-    if (!this.trainingGame) return;
+    if (!this.trainingGame || this.trainingBotThinking) return;
+    if (this.trainingGame.turn !== 'w') return;
+
     const clickedPiece = this.trainingGame.board[r][c];
 
     if (this.trainingSelectedSquare) {
+      const selectedPiece = this.trainingGame.board[this.trainingSelectedSquare.r][this.trainingSelectedSquare.c];
       const legals = this.trainingGame.getLegalMoves(this.trainingSelectedSquare);
-      const match = legals.find(m => m.to.r === r && m.to.c === c);
+      let matchMove = legals.find(m => m.to.r === r && m.to.c === c);
 
-      if (match) {
-        const moveStr = `${this.trainingGame.coordsToSquare(match.from.r, match.from.c)}${this.trainingGame.coordsToSquare(match.to.r, match.to.c)}`;
-        this.trainingGame.makeMove(match);
-        window.chessterAudio.playMove();
-        this.trainingSelectedSquare = null;
-        this.renderTrainingBoard();
+      // Dukungan Rokade Klik Raja -> Benteng
+      if (!matchMove && selectedPiece && selectedPiece.type === 'k' && selectedPiece.color === 'w') {
+        if (c === 7) matchMove = legals.find(m => m.isCastlingKingside);
+        else if (c === 0) matchMove = legals.find(m => m.isCastlingQueenside);
+      }
 
-        // Check against solution
-        const coach = getCoachById(this.user.coachId);
-        if (this.currentPuzzle.solution.includes(moveStr)) {
-          window.chessterAudio.playVictory();
-          alert(`🎉 BRILIAN! Coach ${coach.name}: "Langkah tepat! Analisismu tajam bagaikan grandmaster!"`);
-        } else {
-          alert(`Coach ${coach.name}: "Langkah itu menarik, tapi belum optimal. Coba perhatikan hint lagi!"`);
+      // Dukungan Rokade Klik Benteng -> Raja
+      if (!matchMove && selectedPiece && selectedPiece.type === 'r' && selectedPiece.color === 'w') {
+        if (clickedPiece && clickedPiece.type === 'k' && clickedPiece.color === 'w') {
+          const kingMoves = this.trainingGame.getLegalMoves({ r: this.trainingSelectedSquare.r, c: 4 });
+          if (this.trainingSelectedSquare.c === 7) matchMove = kingMoves.find(m => m.isCastlingKingside);
+          else if (this.trainingSelectedSquare.c === 0) matchMove = kingMoves.find(m => m.isCastlingQueenside);
         }
+      }
+
+      if (matchMove) {
+        // Promosi pion otomatis ke Queen di training jika tembus rank 0
+        if (selectedPiece && selectedPiece.type === 'p' && matchMove.to.r === 0) {
+          matchMove.promotion = 'q';
+        }
+
+        this.executeTrainingPlayerMove(matchMove);
         return;
       }
     }
 
-    if (clickedPiece && clickedPiece.color === this.trainingGame.turn) {
+    if (clickedPiece && clickedPiece.color === 'w') {
       this.trainingSelectedSquare = { r, c };
       this.renderTrainingBoard();
     } else {
       this.trainingSelectedSquare = null;
       this.renderTrainingBoard();
     }
+  }
+
+  executeTrainingPlayerMove(move) {
+    const evalBefore = this.botAi.evaluateBoard(this.trainingGame, 'w');
+    const bestMove = this.botAi.findMove(this.trainingGame, 2500);
+
+    const res = this.trainingGame.makeMove(move);
+    this.trainingSelectedSquare = null;
+    this.trainingHintMove = null;
+
+    const evalAfter = this.botAi.evaluateBoard(this.trainingGame, 'w');
+    const quality = this.evaluatePlayerMoveQuality(move, evalBefore, evalAfter, bestMove);
+
+    const coach = getCoachById(this.user.coachId || 'magnus');
+    const quoteEl = document.getElementById('training-coach-quote');
+    const logBox = document.getElementById('training-move-log');
+
+    // Audio & Feedback Coach
+    if (move.isCastlingKingside || move.isCastlingQueenside) {
+      window.chessterAudio.playCastle();
+      if (quoteEl) quoteEl.textContent = `Coach ${coach.name}: "Rokade yang sangat tepat! Rajamu kini aman dan bentengmu menguasai sayap."`;
+    } else if (quality === 'brilliant') {
+      window.chessterAudio.playBrilliant();
+      if (quoteEl) quoteEl.textContent = `Coach ${coach.name}: "🌟 PENGORBANAN JENIUS (Brilliant Move !!) Langkah ${res.san} spektakuler!"`;
+    } else if (quality === 'best') {
+      if (res.captured) window.chessterAudio.playCapture(); else window.chessterAudio.playMove();
+      if (quoteEl) quoteEl.textContent = `Coach ${coach.name}: "Langkah paling akurat! Tekananmu di petak tengah semakin solid."`;
+    } else if (quality === 'blunder') {
+      window.chessterAudio.playBlunder();
+      if (quoteEl) quoteEl.textContent = `Coach ${coach.name}: "⚠️ Awas, itu langkah blunder! Perhatikan ancaman serangan balikku."`;
+    } else {
+      if (res.captured) window.chessterAudio.playCapture(); else window.chessterAudio.playMove();
+      if (this.trainingGame.isCheck('b')) {
+        window.chessterAudio.playCheck();
+        if (quoteEl) quoteEl.textContent = `Coach ${coach.name}: "Skak! Serangan yang tajam, aku harus mencari jalan keluar."`;
+      } else {
+        if (quoteEl) quoteEl.textContent = `Coach ${coach.name}: "${coach.reactions.goodMove || 'Langkah yang baik, lanjutkan rencanamu!'}"`;
+      }
+    }
+
+    if (logBox) {
+      const stepNum = this.trainingGame.fullMoves - 1;
+      logBox.innerHTML += `<div><strong>${stepNum}. ${res.san}</strong> (Kamu)</div>`;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    this.renderTrainingBoard();
+
+    // Cek apakah game over
+    const status = this.trainingGame.isGameOver();
+    if (status.over) {
+      this.handleTrainingGameOver(status);
+      return;
+    }
+
+    // Giliran Coach melangkah balik
+    this.executeTrainingCoachMove();
+  }
+
+  executeTrainingCoachMove() {
+    this.trainingBotThinking = true;
+    const turnBadge = document.getElementById('training-turn-badge');
+    const coach = getCoachById(this.user.coachId || 'magnus');
+
+    if (turnBadge) {
+      turnBadge.className = 'badge-result badge-win';
+      turnBadge.textContent = `Coach ${coach.name} sedang berpikir...`;
+    }
+
+    setTimeout(() => {
+      if (!this.trainingGame || this.trainingGame.turn !== 'b') {
+        this.trainingBotThinking = false;
+        return;
+      }
+
+      const coachMove = this.botAi.findMove(this.trainingGame, Math.max(2200, coach.peakRating - 250));
+      this.trainingBotThinking = false;
+
+      if (!coachMove) {
+        this.handleTrainingGameOver(this.trainingGame.isGameOver());
+        return;
+      }
+
+      const res = this.trainingGame.makeMove(coachMove);
+      if (res.captured) {
+        window.chessterAudio.playCapture();
+      } else {
+        window.chessterAudio.playMove();
+      }
+
+      if (this.trainingGame.isCheck('w')) {
+        window.chessterAudio.playCheck();
+      }
+
+      const quoteEl = document.getElementById('training-coach-quote');
+      if (quoteEl) {
+        if (this.trainingGame.isCheck('w')) {
+          quoteEl.textContent = `Coach ${coach.name}: "Skak! Awas rajamu terancam, cari langkah perlindungan terbaik!"`;
+        } else if (res.captured) {
+          quoteEl.textContent = `Coach ${coach.name}: "Aku ambil bidakmu di petak ini untuk mengurangi perwiramu."`;
+        } else {
+          quoteEl.textContent = `Coach ${coach.name}: "Aku melangkahkan ${res.san}. Bagaimana rencanamu merespons langkah ini?"`;
+        }
+      }
+
+      const logBox = document.getElementById('training-move-log');
+      if (logBox) {
+        logBox.innerHTML += `<div style="color: #38bdf8;">&nbsp;&nbsp;↳ <strong>${res.san}</strong> (Coach ${coach.name})</div>`;
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+
+      if (turnBadge) {
+        turnBadge.className = 'badge-result badge-draw';
+        turnBadge.textContent = 'Giliran Kamu (Putih)';
+      }
+
+      this.renderTrainingBoard();
+
+      const status = this.trainingGame.isGameOver();
+      if (status.over) {
+        this.handleTrainingGameOver(status);
+      }
+    }, 700);
+  }
+
+  handleTrainingGameOver(status) {
+    const coach = getCoachById(this.user.coachId || 'magnus');
+    const quoteEl = document.getElementById('training-coach-quote');
+    const turnBadge = document.getElementById('training-turn-badge');
+
+    if (status.winner === 'w') {
+      window.chessterAudio.playVictory();
+      if (quoteEl) quoteEl.textContent = `Coach ${coach.name}: "SKAKMAT! Luar biasa, kamu berhasil mengalahkanku! Permainanmu sangat membanggakan!"`;
+      if (turnBadge) {
+        turnBadge.className = 'badge-result badge-win';
+        turnBadge.textContent = 'Kamu Menang Lawan Coach! 🏆';
+      }
+    } else if (status.winner === 'b') {
+      window.chessterAudio.playDefeat();
+      if (quoteEl) quoteEl.textContent = `Coach ${coach.name}: "Skakmat. Jangan patah semangat! Latihan ini memberimu pengalaman berharga. Klik Mulai Ulang untuk tanding lagi!"`;
+      if (turnBadge) {
+        turnBadge.className = 'badge-result badge-loss';
+        turnBadge.textContent = 'Coach Memenangkan Laga';
+      }
+    } else {
+      if (quoteEl) quoteEl.textContent = `Coach ${coach.name}: "Permainan berakhir remis (draw). Pertahananmu sangat kokoh!"`;
+      if (turnBadge) {
+        turnBadge.className = 'badge-result badge-draw';
+        turnBadge.textContent = 'Hasil Remis (Draw)';
+      }
+    }
+  }
+
+  giveTrainingCoachHint() {
+    if (!this.trainingGame || this.trainingBotThinking || this.trainingGame.turn !== 'w') return;
+    const coach = getCoachById(this.user.coachId || 'magnus');
+    const hintMove = this.botAi.findMove(this.trainingGame, 2600);
+    if (!hintMove) return;
+
+    this.trainingHintMove = hintMove;
+    const fromStr = this.trainingGame.coordsToSquare(hintMove.from.r, hintMove.from.c).toUpperCase();
+    const toStr = this.trainingGame.coordsToSquare(hintMove.to.r, hintMove.to.c).toUpperCase();
+
+    const quoteEl = document.getElementById('training-coach-quote');
+    const hintBox = document.getElementById('training-puzzle-hint');
+
+    if (quoteEl) {
+      quoteEl.textContent = `Coach ${coach.name}: "Aku sarankan melangkah dari ${fromStr} ke ${toStr}. Perhatikan petak hijau bercahaya di papan!"`;
+    }
+    if (hintBox) {
+      hintBox.textContent = `💡 Petunjuk Coach: Langkahkan perwira di ${fromStr} menuju ${toStr}.`;
+    }
+
+    this.showNavigationBlockedToast(`💡 Petunjuk Coach ${coach.name}: ${fromStr} ➔ ${toStr}`);
+    this.renderTrainingBoard();
   }
 
   // --- EVENT LISTENERS ---
@@ -1052,9 +1377,10 @@ class ChessterApp {
     });
 
     // Training action buttons
-    document.getElementById('training-btn-reset').addEventListener('click', () => this.renderTraining());
-    document.getElementById('training-btn-change-coach').addEventListener('click', () => this.openCoachSelector());
-    document.getElementById('training-btn-back-home').addEventListener('click', () => this.switchView('home'));
+    document.getElementById('training-btn-hint')?.addEventListener('click', () => this.giveTrainingCoachHint());
+    document.getElementById('training-btn-reset')?.addEventListener('click', () => this.renderTraining());
+    document.getElementById('training-btn-change-coach')?.addEventListener('click', () => this.openCoachSelector());
+    document.getElementById('training-btn-back-home')?.addEventListener('click', () => this.switchView('home'));
   }
 
   // --- NAVIGATION GUARD (PREVENT ACCIDENTAL BACK/EXIT DURING PLAY) ---
@@ -1066,6 +1392,11 @@ class ChessterApp {
     const arenaView = document.getElementById('arena-view');
     const isArenaActive = arenaView && arenaView.classList.contains('active');
     if (isArenaActive && this.game && !this.game.isGameOver().over) {
+      return true;
+    }
+    const trainingView = document.getElementById('training-view');
+    const isTrainingActive = trainingView && trainingView.classList.contains('active');
+    if (isTrainingActive && this.trainingGame && !this.trainingGame.isGameOver().over && this.trainingGame.history.length > 0) {
       return true;
     }
     return false;

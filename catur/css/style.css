@@ -773,6 +773,30 @@ body {
   pointer-events: none;
 }
 
+.hint-castle {
+  width: 78%;
+  height: 78%;
+  border: 3px dashed var(--accent-gold);
+  background-color: rgba(251, 191, 36, 0.28);
+  border-radius: 12px;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  animation: pulseCastle 1.4s infinite alternate;
+}
+
+@keyframes pulseCastle {
+  from { transform: scale(0.92); opacity: 0.82; }
+  to { transform: scale(1.05); opacity: 1; box-shadow: 0 0 16px rgba(251, 191, 36, 0.7); }
+}
+
+.castle-eligible-rook {
+  box-shadow: inset 0 0 0 3px var(--accent-gold), 0 0 14px rgba(251, 191, 36, 0.45) !important;
+  cursor: pointer;
+}
+
 /* Chess Pieces */
 .chess-piece-svg {
   width: 85%;

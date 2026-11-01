@@ -226,6 +226,18 @@ class ChessterAudio {
     osc.start(t);
     osc.stop(t + 0.32);
   }
+
+  playCastle() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    // Double crisp wooden tap representing King and Rook sliding into position
+    this.playMove();
+    setTimeout(() => {
+      this.playMove();
+    }, 110);
+  }
 }
 
 window.chessterAudio = new ChessterAudio();

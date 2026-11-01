@@ -225,23 +225,31 @@
       </div>
     </section>
 
-    <!-- ==================== 3. TRAINING WITH COACH VIEW ==================== -->
+    <!-- ==================== 3. TRAINING WITH COACH VIEW (TANDING LANGSUNG DARI AWAL) ==================== -->
     <section id="training-view" class="view-section training-view">
       <div class="board-container-card">
-        <h2 style="font-size: 1.4rem; font-weight: 800; margin-bottom: 0.5rem; text-align: center;" id="training-puzzle-title">
-          Latihan Taktik
-        </h2>
-        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; text-align: center;" id="training-puzzle-desc">
-          Temukan langkah terbaik untuk memenangkan posisi.
-        </p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h2 style="font-size: 1.35rem; font-weight: 800; margin-bottom: 0.2rem;" id="training-puzzle-title">
+              Tanding Latihan Melawan Coach
+            </h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem;" id="training-puzzle-desc">
+              Bertanding catur dari awal babak (Langkah 1). Coach akan melangkah balik dan membimbingmu langsung!
+            </p>
+          </div>
+          <div id="training-turn-badge" class="badge-result badge-draw" style="font-size: 0.85rem; padding: 5px 14px; border-radius: 999px;">
+            Giliran Kamu (Putih)
+          </div>
+        </div>
 
         <div class="chessboard-wrapper" style="max-width: 520px;">
           <div class="chessboard" id="training-chessboard"></div>
         </div>
 
-        <div style="margin-top: 1rem; display: flex; gap: 0.75rem;">
-          <button class="btn-secondary" id="training-btn-reset">🔄 Ulangi Posisi</button>
-          <button class="btn-secondary" id="training-btn-back-home">🏠 Kembali ke Beranda</button>
+        <div style="margin-top: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap;">
+          <button class="btn-primary" id="training-btn-hint" style="flex: 1; min-width: 150px;">💡 Minta Petunjuk Coach</button>
+          <button class="btn-secondary" id="training-btn-reset" style="flex: 1; min-width: 150px;">🔄 Mulai Ulang Tanding</button>
+          <button class="btn-secondary" id="training-btn-back-home" style="min-width: 120px;">🏠 Beranda</button>
         </div>
       </div>
 
@@ -250,16 +258,21 @@
         <div class="training-coach-card">
           <div class="coach-avatar-large" id="training-coach-avatar"></div>
           <h3 id="training-coach-name" style="font-size: 1.3rem; margin-bottom: 0.25rem;">Coach</h3>
-          <p id="training-coach-bio" style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 1rem;"></p>
-          <div class="coach-quote-bubble" id="training-coach-quote"></div>
+          <p id="training-coach-bio" style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 0.75rem;"></p>
+          <div class="coach-quote-bubble" id="training-coach-quote">
+            "Ayo kita mulai bertanding dari awal! Majukan pion atau kudamu, tunjukkan langkah pembukaan terbaikmu!"
+          </div>
           <button class="btn-change-coach" id="training-btn-change-coach">🔄 Ganti Coach Lain</button>
         </div>
 
-        <!-- Coach Hint Box -->
+        <!-- Coach Analysis & Instruction Box -->
         <div class="training-puzzle-box">
-          <h4 style="font-size: 1rem; color: var(--accent-gold); margin-bottom: 0.5rem;">Instruksi Pelatih</h4>
+          <h4 style="font-size: 1rem; color: var(--accent-gold); margin-bottom: 0.5rem;">Bimbingan & Nasihat Taktis</h4>
           <div class="training-tip-box" id="training-puzzle-hint">
-            💡 Amati petak-petak penting di sekitar raja lawan!
+            💡 Kuasai petak pusat (e4, d4, e5, d5), kembangkan Kuda dan Gajah, lalu lakukan Rokade untuk mengamankan Rajamu!
+          </div>
+          <div id="training-move-log" style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted); max-height: 110px; overflow-y: auto; background: var(--bg-dark); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); line-height: 1.5;">
+            Catatan: Pertandingan tanding latihan baru dimulai.
           </div>
         </div>
       </div>
