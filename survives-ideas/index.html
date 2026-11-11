@@ -1,0 +1,2318 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Survives Ideas — Game Bertahan Hidup 3D Karya Kevin</title>
+  <meta name="description" content="Survives Ideas: Game 3D survival online di mana ide bencana diundi secara acak untuk bot dan pemain. Hindari tsunami di menara dan selamat dari serbuan zombie!">
+  
+  <!-- Three.js 3D Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #071329;
+      color: #fff;
+    }
+
+    /* Canvas 3D Game */
+    #game-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      display: block;
+    }
+
+    /* Efek Kamera Hijau saat Digigit Zombie */
+    #zombie-screen-tint {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 15;
+      opacity: 0;
+      background: radial-gradient(circle at center, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.45) 60%, rgba(6, 78, 59, 0.85) 100%);
+      mix-blend-mode: color-burn;
+      transition: opacity 0.3s ease;
+    }
+    #zombie-screen-tint.infected {
+      opacity: 0.85;
+      animation: pulseInfection 1.2s infinite alternate;
+    }
+    @keyframes pulseInfection {
+      0% { opacity: 0.45; }
+      100% { opacity: 0.9; }
+    }
+
+    /* Efek Air Tsunami Tenggelam */
+    #water-screen-tint {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 16;
+      opacity: 0;
+      background: radial-gradient(circle at center, rgba(14, 165, 233, 0.4) 0%, rgba(3, 105, 161, 0.85) 75%, rgba(2, 44, 100, 0.95) 100%);
+      transition: opacity 0.4s ease;
+    }
+    #water-screen-tint.drowning {
+      opacity: 0.9;
+    }
+
+    /* OVERLAY SCREENS */
+    .screen-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .screen-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* MENU UTAMA - Latar Belakang Biru */
+    #main-menu {
+      background: linear-gradient(135deg, #091a3e 0%, #102a6b 50%, #0d47a1 100%);
+      box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.5);
+    }
+
+    .brand-nav {
+      position: absolute;
+      top: 18px;
+      left: 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      z-index: 35;
+    }
+    .back-portal-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 999px;
+      color: #e2e8f0;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s;
+    }
+    .back-portal-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+      color: #fff;
+      transform: translateY(-2px);
+    }
+
+    .coins-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: rgba(254, 240, 138, 0.15);
+      border: 1px solid rgba(250, 204, 21, 0.5);
+      border-radius: 999px;
+      color: #fde047;
+      font-size: 14px;
+      font-weight: 800;
+      backdrop-filter: blur(8px);
+    }
+
+    .menu-box {
+      background: rgba(13, 31, 74, 0.85);
+      border: 2px solid rgba(59, 130, 246, 0.4);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(37, 99, 235, 0.3);
+      backdrop-filter: blur(14px);
+      border-radius: 24px;
+      padding: 40px 36px;
+      max-width: 520px;
+      width: 90%;
+      text-align: center;
+      animation: floatIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes floatIn {
+      0% { transform: scale(0.9) translateY(20px); opacity: 0; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    .game-logo-badge {
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: #1e40af;
+      color: #93c5fd;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      border: 1px solid #3b82f6;
+    }
+
+    .menu-title {
+      font-size: clamp(34px, 7vw, 48px);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #ffffff 0%, #67e8f9 50%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 4px 20px rgba(56, 189, 248, 0.4);
+      margin-bottom: 8px;
+    }
+
+    .menu-subtitle {
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+
+    .menu-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .btn-main {
+      appearance: none;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      padding: 16px 24px;
+      border-radius: 16px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+    .btn-main:hover {
+      transform: translateY(-3px) scale(1.02);
+    }
+    .btn-main:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    .btn-play {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      color: #ffffff;
+      box-shadow: 0 12px 28px rgba(34, 197, 94, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .btn-play:hover {
+      box-shadow: 0 16px 36px rgba(34, 197, 94, 0.6);
+      background: linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
+    }
+
+    .btn-shop {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: #ffffff;
+      box-shadow: 0 10px 24px rgba(245, 158, 11, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .btn-shop:hover {
+      box-shadow: 0 14px 30px rgba(245, 158, 11, 0.55);
+      background: linear-gradient(135deg, #fbbf24 0%, #b45309 100%);
+    }
+
+    .shop-logo-icon {
+      font-size: 24px;
+    }
+
+    .menu-tips {
+      margin-top: 24px;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 12px;
+      color: #94a3b8;
+      border: 1px dashed rgba(59, 130, 246, 0.3);
+    }
+
+    /* MODAL SHOP */
+    #shop-modal {
+      background: rgba(4, 12, 30, 0.88);
+      backdrop-filter: blur(16px);
+      z-index: 40;
+    }
+    .shop-card {
+      background: #0d2350;
+      border: 2px solid #2563eb;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(37, 99, 235, 0.3);
+      border-radius: 24px;
+      max-width: 650px;
+      width: 95%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .shop-header {
+      padding: 20px 24px;
+      background: #122b64;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #1e40af;
+    }
+    .shop-header-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .btn-close-shop {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      transition: 0.2s;
+    }
+    .btn-close-shop:hover {
+      background: rgba(239, 68, 68, 0.8);
+    }
+    .shop-body {
+      padding: 20px;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .item-card {
+      background: #0a1b3f;
+      border: 1px solid #1e3a8a;
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+    .item-card:hover {
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+    }
+    .item-info {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .item-icon {
+      font-size: 32px;
+      width: 50px;
+      height: 50px;
+      background: #172e61;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #2563eb;
+    }
+    .item-desc h4 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+    .item-desc p {
+      font-size: 11.5px;
+      color: #94a3b8;
+      line-height: 1.35;
+      margin-top: 2px;
+    }
+    .item-action {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .item-price {
+      font-size: 14px;
+      font-weight: 800;
+      color: #fde047;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-buy {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .btn-buy:hover {
+      background: #1d4ed8;
+    }
+    .btn-buy:disabled {
+      background: #334155;
+      color: #64748b;
+      cursor: not-allowed;
+    }
+    .btn-buy.owned {
+      background: #16a34a;
+    }
+
+    /* HUD IN-GAME (Saat Gameplay 3D) */
+    #hud-container {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px;
+    }
+    #hud-container > * {
+      pointer-events: auto;
+    }
+
+    .top-hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .hud-left {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn-hud-menu {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: 0.2s;
+    }
+    .btn-hud-menu:hover {
+      background: rgba(239, 68, 68, 0.8);
+      border-color: #ef4444;
+    }
+
+    .stats-card {
+      background: rgba(13, 27, 62, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      border-radius: 14px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 170px;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .hp-bar-bg {
+      width: 100%;
+      height: 9px;
+      background: #1e293b;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .hp-bar-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #ef4444, #22c55e);
+      transition: width 0.2s ease;
+    }
+
+    .hud-center {
+      text-align: center;
+      max-width: 460px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Event Alert Banner */
+    .event-alert-box {
+      background: rgba(15, 23, 42, 0.9);
+      border: 2px solid #eab308;
+      border-radius: 16px;
+      padding: 10px 18px;
+      color: #fff;
+      display: none;
+      animation: alertBounce 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+    @keyframes alertBounce {
+      0% { transform: scale(0.8); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .event-alert-box.active {
+      display: block;
+    }
+    .event-alert-title {
+      font-size: 17px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .event-alert-timer {
+      font-size: 22px;
+      font-weight: 900;
+      color: #ef4444;
+      margin-top: 2px;
+    }
+
+    /* KOTAK INPUT TULIS IDE (BENCANA) & ROULETTE */
+    .idea-console {
+      background: rgba(10, 25, 59, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 18px;
+      padding: 8px 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    .idea-input {
+      flex: 1;
+      background: rgba(2, 6, 23, 0.6);
+      border: 1px solid #1e3a8a;
+      border-radius: 10px;
+      padding: 9px 12px;
+      color: #fff;
+      font-size: 13.5px;
+      outline: none;
+    }
+    .idea-input:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+    }
+    .btn-send-idea {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: 0.15s;
+      white-space: nowrap;
+    }
+    .btn-send-idea:hover {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+      transform: scale(1.03);
+    }
+
+    /* ROULETTE / TURN INDICATOR */
+    .roulette-pill {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .roulette-pill.highlight {
+      background: #7c2d12;
+      border-color: #f97316;
+      color: #ffedd5;
+      animation: blink 1s infinite alternate;
+    }
+    @keyframes blink {
+      0% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+
+    /* QUICK SHORTCUT BUTTONS UNTUK TULIS IDE */
+    .quick-ideas {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .btn-quick-idea {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 3px 9px;
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .btn-quick-idea:hover {
+      background: rgba(56, 189, 248, 0.25);
+      border-color: #38bdf8;
+      color: #fff;
+    }
+
+    /* INVENTORY / ALAT DI DALAM GAME */
+    .bottom-hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 12px;
+    }
+
+    .inventory-bar {
+      display: flex;
+      gap: 8px;
+      background: rgba(11, 23, 53, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 16px;
+      padding: 8px 12px;
+    }
+    .inv-slot {
+      width: 52px;
+      height: 52px;
+      background: #0f1f45;
+      border: 2px solid #1e3a8a;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.15s;
+    }
+    .inv-slot:hover {
+      border-color: #38bdf8;
+      transform: scale(1.05);
+    }
+    .inv-slot.empty {
+      border-style: dashed;
+      opacity: 0.5;
+      cursor: default;
+    }
+    .inv-icon {
+      font-size: 22px;
+    }
+    .inv-count {
+      position: absolute;
+      bottom: 2px;
+      right: 4px;
+      font-size: 10px;
+      font-weight: 800;
+      color: #fde047;
+    }
+
+    /* MOBILE JOYSTICK & BUTTONS */
+    .mobile-controls {
+      display: none;
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 25;
+    }
+    @media (pointer: coarse) {
+      .mobile-controls {
+        display: block;
+      }
+    }
+    .touch-joystick-zone {
+      position: absolute;
+      left: 20px;
+      bottom: 20px;
+      width: 120px;
+      height: 120px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      pointer-events: auto;
+      touch-action: none;
+      display: grid;
+      place-items: center;
+    }
+    .touch-knob {
+      width: 50px;
+      height: 50px;
+      background: rgba(56, 189, 248, 0.7);
+      border-radius: 50%;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+      transform: translate(0, 0);
+    }
+    .mobile-action-buttons {
+      position: absolute;
+      right: 20px;
+      bottom: 25px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: auto;
+    }
+    .btn-mobile-action {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: rgba(37, 99, 235, 0.85);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      font-size: 20px;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      touch-action: manipulation;
+    }
+    .btn-mobile-action:active {
+      transform: scale(0.92);
+      background: #1d4ed8;
+    }
+
+    /* SCREEN GAME OVER / MENANG */
+    #gameover-screen {
+      background: rgba(5, 12, 28, 0.92);
+      backdrop-filter: blur(16px);
+    }
+    .gameover-box {
+      background: #0d1f44;
+      border: 2px solid #ef4444;
+      border-radius: 24px;
+      padding: 36px 30px;
+      text-align: center;
+      max-width: 450px;
+      width: 90%;
+      box-shadow: 0 20px 50px rgba(239, 68, 68, 0.3);
+    }
+    .gameover-title {
+      font-size: 32px;
+      font-weight: 900;
+      color: #f87171;
+      margin-bottom: 8px;
+    }
+    .gameover-desc {
+      color: #cbd5e1;
+      font-size: 15px;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+
+    /* NOTIFIKASI TOAST */
+    #toast-msg {
+      position: absolute;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #38bdf8;
+      border-radius: 999px;
+      padding: 8px 20px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #f0f9ff;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 50;
+    }
+    #toast-msg.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 3D Canvas Three.js -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Efek Visual Kamera Hijau saat Digigit Zombie -->
+  <div id="zombie-screen-tint"></div>
+
+  <!-- Efek Visual Air Tsunami saat Tenggelam -->
+  <div id="water-screen-tint"></div>
+
+  <!-- Toast Pesan / Notifikasi Singkat -->
+  <div id="toast-msg">Selamat datang di Survives Ideas!</div>
+
+  <!-- NAVIGATION TOP LEFT -->
+  <div class="brand-nav">
+    <a href="../index.html" class="back-portal-btn" id="link-kevin-games">
+      <span>🎮</span> Kevin Games
+    </a>
+    <div class="coins-badge" id="coins-display">
+      <span>🪙</span> <span id="coins-val">100</span> Koin
+    </div>
+  </div>
+
+  <!-- 1. MENU UTAMA (LATAR BELAKANG BIRU) -->
+  <section id="main-menu" class="screen-overlay">
+    <div class="menu-box">
+      <div class="game-logo-badge">🔥 Survival 3D Arena</div>
+      <h1 class="menu-title">SURVIVES IDEAS</h1>
+      <p class="menu-subtitle">
+        Tulis ide bencana atau biarkan diundi secara acak untukmu dan bot! 
+        Beli perlengkapan di Shop untuk bertahan dari Tsunami & Zombie!
+      </p>
+
+      <div class="menu-buttons">
+        <button class="btn-main btn-play" id="btn-play">
+          <span>▶️</span> PLAY GAME
+        </button>
+        <button class="btn-main btn-shop" id="btn-open-shop">
+          <span class="shop-logo-icon">🛒</span> SHOP PERLENGKAPAN
+        </button>
+      </div>
+
+      <div class="menu-tips">
+        💡 <b>Tips:</b> Saat ada <b>Tsunami</b>, segera panjat Menara Tinggi dalam 5 detik! 
+        Saat ada <b>Zombie</b>, gunakan pedang atau larilah sebelum digigit dan tertular virus hijau!
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. SHOP MODAL (TOKO PERLENGKAPAN SURVIVE) -->
+  <section id="shop-modal" class="screen-overlay hidden">
+    <div class="shop-card">
+      <div class="shop-header">
+        <div class="shop-header-title">
+          <span>🛒</span> SHOP PERLENGKAPAN SURVIVE
+        </div>
+        <button class="btn-close-shop" id="btn-close-shop">✕</button>
+      </div>
+
+      <div class="shop-body" id="shop-items-container">
+        <!-- Item toko akan di-generate via JavaScript -->
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. HUD IN-GAME (Saat Gameplay 3D Berlangsung) -->
+  <div id="hud-container" style="display: none;">
+    <!-- Bagian Atas -->
+    <div class="top-hud">
+      <div class="hud-left">
+        <button class="btn-hud-menu" id="btn-hud-back">
+          <span>◀</span> Menu Utama
+        </button>
+        
+        <div class="stats-card">
+          <div class="stat-row">
+            <span>❤️ Darah:</span>
+            <span id="hud-hp-text">100%</span>
+          </div>
+          <div class="hp-bar-bg">
+            <div class="hp-bar-fill" id="hud-hp-bar"></div>
+          </div>
+          <div class="stat-row" style="margin-top: 4px; font-size: 11.5px; color: #93c5fd;">
+            <span>⏱️ Waktu Bertahan:</span>
+            <span id="hud-survival-time">0s</span>
+          </div>
+          <div class="stat-row" style="font-size: 11.5px; color: #cbd5e1;">
+            <span>🤖 Bot Hidup:</span>
+            <span id="hud-bots-count">3</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pusat HUD: Bencana Alert & Konsol Tulis Ide -->
+      <div class="hud-center">
+        <!-- Kotak Peringatan Bencana -->
+        <div class="event-alert-box" id="event-alert">
+          <div class="event-alert-title" id="event-title">⚠️ TSUNAMI BESAR DATANG!</div>
+          <div class="event-alert-timer" id="event-timer">5.0s</div>
+        </div>
+
+        <!-- Giliran Roulette Pemilih Ide -->
+        <div class="roulette-pill" id="roulette-status">
+          <span>🎲</span> <span id="roulette-text">Menunggu giliran pengundian ide...</span>
+        </div>
+
+        <!-- Input Tulis Ide yang Diinginkan -->
+        <div class="idea-console">
+          <input type="text" id="input-idea" class="idea-input" placeholder="Tulis idemu (misal: tsunami, zombie)..." maxlength="30" />
+          <button class="btn-send-idea" id="btn-submit-idea">
+            <span>✨</span> Kirim Ide
+          </button>
+        </div>
+
+        <!-- Tombol Pintas Cepat Ide -->
+        <div class="quick-ideas">
+          <button class="btn-quick-idea" data-idea="tsunami">🌊 Tsunami</button>
+          <button class="btn-quick-idea" data-idea="zombie">🧟 Zombie</button>
+          <button class="btn-quick-idea" data-idea="random">🎲 Acak Sekarang</button>
+        </div>
+      </div>
+
+      <!-- Sisi Kanan Atas -->
+      <div class="hud-right">
+        <!-- Kosong atau widget tambahan -->
+      </div>
+    </div>
+
+    <!-- Bagian Bawah HUD: Inventori Pemain -->
+    <div class="bottom-hud">
+      <div class="inventory-bar" id="hud-inventory">
+        <!-- Slot item inventori -->
+      </div>
+      <div style="font-size: 12px; color: rgba(255,255,255,0.7); background: rgba(0,0,0,0.4); padding: 6px 12px; border-radius: 8px;">
+        WASD/Panah: Jalan | Spasi: Lompat / Serang Zombie
+      </div>
+    </div>
+  </div>
+
+  <!-- KONTROL TOUCH UNTUK HP/TABLET -->
+  <div class="mobile-controls" id="mobile-controls">
+    <div class="touch-joystick-zone" id="joystick-zone">
+      <div class="touch-knob" id="joystick-knob"></div>
+    </div>
+    <div class="mobile-action-buttons">
+      <button class="btn-mobile-action" id="btn-touch-attack" title="Serang Zombie">⚔️</button>
+      <button class="btn-mobile-action" id="btn-touch-jump" title="Lompat">🦘</button>
+    </div>
+  </div>
+
+  <!-- 4. SCREEN GAME OVER -->
+  <section id="gameover-screen" class="screen-overlay hidden">
+    <div class="gameover-box">
+      <div style="font-size: 56px; margin-bottom: 8px;" id="gameover-icon">💀</div>
+      <h2 class="gameover-title" id="gameover-title">KAMU GUGUR!</h2>
+      <p class="gameover-desc" id="gameover-desc">
+        Kamu tersapu ombak tsunami karena terlambat menaiki menara penyelamatan!
+      </p>
+
+      <div class="menu-buttons">
+        <button class="btn-main btn-play" id="btn-restart">
+          <span>🔄</span> MAIN LAGI
+        </button>
+        <button class="btn-main btn-shop" id="btn-gameover-shop">
+          <span>🛒</span> SHOP ALAT
+        </button>
+        <button class="btn-main" id="btn-gameover-menu" style="background:#334155; color:#fff;">
+          <span>🏠</span> KEMBALI KE MENU
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- AUDIO SYNTHESIZER & SOUND FX -->
+  <script>
+    // Audio FX menggunakan Web Audio API tanpa perlu file eksternal
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playClick() {
+        this.init();
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.08);
+      }
+      playBuy() {
+        this.init();
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
+        osc.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.08); // E5
+        osc.frequency.setValueAtTime(783.99, this.ctx.currentTime + 0.16); // G5
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.28);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.3);
+      }
+      playAlarm() {
+        this.init();
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(700, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(400, this.ctx.currentTime + 0.4);
+        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.45);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.45);
+      }
+      playTsunamiWave() {
+        this.init();
+        if (!this.ctx) return;
+        // White noise simulasi gemuruh air
+        const bufferSize = this.ctx.sampleRate * 1.5;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(250, this.ctx.currentTime);
+        filter.frequency.linearRampToValueAtTime(600, this.ctx.currentTime + 0.8);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 1.5);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+      }
+      playBite() {
+        this.init();
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.18);
+        gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.2);
+      }
+      playHit() {
+        this.init();
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(280, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(90, this.ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.14);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.14);
+      }
+      playJump() {
+        this.init();
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(580, this.ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+      }
+    }
+    const sfx = new SoundFX();
+  </script>
+
+  <!-- GAME LOGIC & 3D ENGINE -->
+  <script>
+    /* =========================================================
+       DATA SHOP & INVENTORI
+       ========================================================= */
+    const SHOP_ITEMS = [
+      {
+        id: 'turbo_shoes',
+        name: 'Sepatu Turbo',
+        icon: '👟',
+        price: 50,
+        desc: 'Lari 60% lebih kencang! Sangat bagus untuk kabur dari tsunami & zombie.',
+        type: 'passive_speed',
+        value: 1.6
+      },
+      {
+        id: 'sword',
+        name: 'Pedang Pemukul',
+        icon: '⚔️',
+        price: 80,
+        desc: 'Senjata jarak dekat. Klik tombol Serang / Spasi untuk memukul zombie sampai hancur!',
+        type: 'weapon',
+        value: 1
+      },
+      {
+        id: 'medkit',
+        name: 'Kotak P3K Medkit',
+        icon: '🩹',
+        price: 40,
+        desc: 'Menyembuhkan gigitan zombie, pulihkan darah 100% dan hilangkan efek racun hijau!',
+        type: 'consumable_heal',
+        value: 100
+      },
+      {
+        id: 'super_spring',
+        name: 'Pegas Super',
+        icon: '🦘',
+        price: 90,
+        desc: 'Melompat sangat tinggi! Bisa langsung melompati rintangan ke dek menara penyelamatan.',
+        type: 'jump_boost',
+        value: 2.2
+      },
+      {
+        id: 'shield',
+        name: 'Tameng Pelindung',
+        icon: '🛡️',
+        price: 70,
+        desc: 'Menahan 3 kali serangan zombie tanpa terluka sedikitpun!',
+        type: 'shield',
+        value: 3
+      },
+      {
+        id: 'energy_drink',
+        name: 'Minuman Stamina',
+        icon: '⚡',
+        price: 30,
+        desc: 'Memberikan dorongan stamina instan dan darah darurat +30%.',
+        type: 'consumable_heal',
+        value: 30
+      }
+    ];
+
+    // Status Game & Player
+    const gameState = {
+      coins: parseInt(localStorage.getItem('survives_coins')) || 150,
+      inventory: JSON.parse(localStorage.getItem('survives_inventory')) || ['turbo_shoes'],
+      activeItems: {}, // item yang aktif
+      shieldCharges: 0,
+      isPlaying: false,
+      isZombie: false,
+      hp: 100,
+      infection: 0, // tingkat gigitan zombie
+      survivalTime: 0,
+      currentTurn: null, // siapa yang berhak memilih ide
+      eventActive: null, // null | 'tsunami' | 'zombie'
+      eventCountdown: 0,
+      botCount: 3
+    };
+
+    function savePlayerData() {
+      localStorage.setItem('survives_coins', gameState.coins);
+      localStorage.setItem('survives_inventory', JSON.stringify(gameState.inventory));
+      document.getElementById('coins-val').textContent = gameState.coins;
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast-msg');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2800);
+    }
+
+    /* =========================================================
+       UI INITIALIZATION & SHOP
+       ========================================================= */
+    const mainMenu = document.getElementById('main-menu');
+    const shopModal = document.getElementById('shop-modal');
+    const hudContainer = document.getElementById('hud-container');
+    const gameoverScreen = document.getElementById('gameover-screen');
+    const shopItemsContainer = document.getElementById('shop-items-container');
+
+    function renderShop() {
+      shopItemsContainer.innerHTML = '';
+      SHOP_ITEMS.forEach(item => {
+        const isOwned = gameState.inventory.includes(item.id);
+        const card = document.createElement('div');
+        card.className = 'item-card';
+        card.innerHTML = `
+          <div class="item-info">
+            <div class="item-icon">${item.icon}</div>
+            <div class="item-desc">
+              <h4>${item.name}</h4>
+              <p>${item.desc}</p>
+            </div>
+          </div>
+          <div class="item-action">
+            <div class="item-price">🪙 ${item.price} Koin</div>
+            <button class="btn-buy ${isOwned ? 'owned' : ''}" data-id="${item.id}" ${isOwned ? 'disabled' : ''}>
+              ${isOwned ? '✓ Dimiliki' : 'Beli Alat'}
+            </button>
+          </div>
+        `;
+        const buyBtn = card.querySelector('.btn-buy');
+        if (!isOwned) {
+          buyBtn.addEventListener('click', () => buyItem(item));
+        }
+        shopItemsContainer.appendChild(card);
+      });
+      document.getElementById('coins-val').textContent = gameState.coins;
+    }
+
+    function buyItem(item) {
+      sfx.init();
+      if (gameState.coins >= item.price) {
+        gameState.coins -= item.price;
+        gameState.inventory.push(item.id);
+        savePlayerData();
+        sfx.playBuy();
+        showToast(`Berhasil membeli ${item.name}! Dibawa ke survival.`);
+        renderShop();
+        renderInventoryHUD();
+      } else {
+        showToast('Koin tidak cukup! Bertahan hiduplah lebih lama untuk koin.');
+      }
+    }
+
+    function renderInventoryHUD() {
+      const invContainer = document.getElementById('hud-inventory');
+      invContainer.innerHTML = '';
+      if (gameState.inventory.length === 0) {
+        invContainer.innerHTML = '<div style="font-size:12px;color:#94a3b8;align-self:center;">Belum ada alat dari Shop</div>';
+        return;
+      }
+      gameState.inventory.forEach(itemId => {
+        const item = SHOP_ITEMS.find(i => i.id === itemId);
+        if (!item) return;
+        const slot = document.createElement('div');
+        slot.className = 'inv-slot';
+        slot.title = `${item.name}: ${item.desc}`;
+        slot.innerHTML = `
+          <div class="inv-icon">${item.icon}</div>
+        `;
+        slot.addEventListener('click', () => useItem(item));
+        invContainer.appendChild(slot);
+      });
+    }
+
+    function useItem(item) {
+      if (!gameState.isPlaying) return;
+      sfx.init();
+      if (item.type === 'consumable_heal') {
+        gameState.hp = Math.min(100, gameState.hp + item.value);
+        gameState.infection = 0;
+        document.getElementById('zombie-screen-tint').classList.remove('infected');
+        updateHUDStats();
+        sfx.playBuy();
+        showToast(`Menggunakan ${item.name}: Darah pulih & infeksi zombie hilang!`);
+      } else if (item.type === 'weapon') {
+        attackWithWeapon();
+      } else {
+        showToast(`${item.name} aktif secara otomatis saat kamu bergerak!`);
+      }
+    }
+
+    /* =========================================================
+       THREE.JS 3D SURVIVAL ARENA
+       ========================================================= */
+    let scene, camera, renderer;
+    let player, playerBody, playerHead;
+    let bots = [];
+    let zombies = [];
+    let towerGroup = null;
+    let waterMesh = null;
+    let clock = new THREE.Clock();
+
+    // Movement & Keys
+    const keys = { w: false, a: false, s: false, d: false, space: false };
+    const playerVel = new THREE.Vector3();
+    let isGrounded = true;
+    let joystickVector = { x: 0, y: 0 };
+
+    function init3D() {
+      const canvas = document.getElementById('game-canvas');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x38bdf8); // Langit cerah laut
+      scene.fog = new THREE.FogExp2(0x38bdf8, 0.012);
+
+      camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+      
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      // Pencahayaan
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.9);
+      dirLight.position.set(40, 60, 30);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 1024;
+      dirLight.shadow.mapSize.height = 1024;
+      dirLight.shadow.camera.near = 0.5;
+      dirLight.shadow.camera.far = 150;
+      dirLight.shadow.camera.left = -45;
+      dirLight.shadow.camera.right = 45;
+      dirLight.shadow.camera.top = 45;
+      dirLight.shadow.camera.bottom = -45;
+      scene.add(dirLight);
+
+      // Arena Pulau Survival
+      createSurvivalIsland();
+
+      // Buat Karakter Player
+      createPlayer();
+
+      // Buat Bot AI
+      createBots();
+
+      // Buat Air Laut Dasar
+      createOcean();
+
+      window.addEventListener('resize', onWindowResize);
+      setupControls();
+    }
+
+    function createSurvivalIsland() {
+      // Pulau Utama (Tanah + Rumput)
+      const islandGeo = new THREE.CylinderGeometry(36, 40, 6, 32);
+      const islandMat = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); // Rumput hijau cerah
+      const island = new THREE.Mesh(islandGeo, islandMat);
+      island.position.y = -3;
+      island.receiveShadow = true;
+      scene.add(island);
+
+      // Pinggiran Pasir Pantai
+      const sandGeo = new THREE.CylinderGeometry(40, 44, 4, 32);
+      const sandMat = new THREE.MeshLambertMaterial({ color: 0xfef08a });
+      const sand = new THREE.Mesh(sandGeo, sandMat);
+      sand.position.y = -5;
+      sand.receiveShadow = true;
+      scene.add(sand);
+
+      // Beberapa Pohon & Batu Dekorasi
+      for (let i = 0; i < 14; i++) {
+        const angle = (i / 14) * Math.PI * 2 + Math.random() * 0.2;
+        const dist = 18 + Math.random() * 14;
+        const x = Math.cos(angle) * dist;
+        const z = Math.sin(angle) * dist;
+
+        // Pohon
+        const trunkGeo = new THREE.CylinderGeometry(0.5, 0.7, 3, 6);
+        const trunkMat = new THREE.MeshLambertMaterial({ color: 0x78350f });
+        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+        trunk.position.set(x, 1.5, z);
+        trunk.castShadow = true;
+        scene.add(trunk);
+
+        const leavesGeo = new THREE.ConeGeometry(2.5, 5, 7);
+        const leavesMat = new THREE.MeshLambertMaterial({ color: 0x166534 });
+        const leaves = new THREE.Mesh(leavesGeo, leavesMat);
+        leaves.position.set(x, 4.5, z);
+        leaves.castShadow = true;
+        scene.add(leaves);
+      }
+    }
+
+    function createOcean() {
+      // Air Laut
+      const waterGeo = new THREE.PlaneGeometry(300, 300, 32, 32);
+      const waterMat = new THREE.MeshLambertMaterial({
+        color: 0x0284c7,
+        transparent: true,
+        opacity: 0.8
+      });
+      waterMesh = new THREE.Mesh(waterGeo, waterMat);
+      waterMesh.rotation.x = -Math.PI / 2;
+      waterMesh.position.y = -4; // Level normal di bawah pulau
+      scene.add(waterMesh);
+    }
+
+    function createPlayer() {
+      player = new THREE.Group();
+
+      // Tubuh
+      const bodyGeo = new THREE.BoxGeometry(1.2, 1.6, 0.8);
+      const bodyMat = new THREE.MeshLambertMaterial({ color: 0x2563eb }); // Baju Biru
+      playerBody = new THREE.Mesh(bodyGeo, bodyMat);
+      playerBody.position.y = 1.3;
+      playerBody.castShadow = true;
+      player.add(playerBody);
+
+      // Kepala
+      const headGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+      const headMat = new THREE.MeshLambertMaterial({ color: 0xfde047 }); // Kulit Kuning
+      playerHead = new THREE.Mesh(headGeo, headMat);
+      playerHead.position.y = 2.5;
+      playerHead.castShadow = true;
+      player.add(playerHead);
+
+      // Topi Survival
+      const hatGeo = new THREE.BoxGeometry(1.1, 0.3, 1.1);
+      const hatMat = new THREE.MeshLambertMaterial({ color: 0xb45309 });
+      const hat = new THREE.Mesh(hatGeo, hatMat);
+      hat.position.y = 3.0;
+      player.add(hat);
+
+      // Posisi Awal
+      player.position.set(0, 0, 5);
+      scene.add(player);
+    }
+
+    function createBots() {
+      bots = [];
+      const botNames = ['Bot Budi', 'Bot Siti', 'Bot Alex'];
+      const botColors = [0xd97706, 0x9333ea, 0x059669];
+
+      for (let i = 0; i < 3; i++) {
+        const botGroup = new THREE.Group();
+
+        // Tubuh
+        const bodyGeo = new THREE.BoxGeometry(1.2, 1.6, 0.8);
+        const bodyMat = new THREE.MeshLambertMaterial({ color: botColors[i] });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = 1.3;
+        body.castShadow = true;
+        botGroup.add(body);
+
+        // Kepala
+        const headGeo = new THREE.BoxGeometry(0.85, 0.85, 0.85);
+        const headMat = new THREE.MeshLambertMaterial({ color: 0xfed7aa });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.y = 2.45;
+        head.castShadow = true;
+        botGroup.add(head);
+
+        const angle = (i / 3) * Math.PI * 2;
+        botGroup.position.set(Math.cos(angle) * 12, 0, Math.sin(angle) * 12);
+        
+        botGroup.userData = {
+          name: botNames[i],
+          alive: true,
+          targetPos: new THREE.Vector3(Math.cos(angle) * 12, 0, Math.sin(angle) * 12),
+          speed: 4 + Math.random() * 2,
+          state: 'idle',
+          infected: false
+        };
+
+        scene.add(botGroup);
+        bots.push(botGroup);
+      }
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    /* =========================================================
+       KONTROL PEMAIN (KEYBOARD & TOUCH)
+       ========================================================= */
+    function setupControls() {
+      window.addEventListener('keydown', (e) => {
+        const k = e.key.toLowerCase();
+        if (k === 'w' || k === 'arrowup') keys.w = true;
+        if (k === 'a' || k === 'arrowleft') keys.a = true;
+        if (k === 's' || k === 'arrowdown') keys.s = true;
+        if (k === 'd' || k === 'arrowright') keys.d = true;
+        if (k === ' ') {
+          keys.space = true;
+          handleJumpOrAttack();
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        const k = e.key.toLowerCase();
+        if (k === 'w' || k === 'arrowup') keys.w = false;
+        if (k === 'a' || k === 'arrowleft') keys.a = false;
+        if (k === 's' || k === 'arrowdown') keys.s = false;
+        if (k === 'd' || k === 'arrowright') keys.d = false;
+        if (k === ' ') keys.space = false;
+      });
+
+      // Touch Joystick
+      const joystickZone = document.getElementById('joystick-zone');
+      const joystickKnob = document.getElementById('joystick-knob');
+      let touchActive = false;
+      let startX = 0, startY = 0;
+
+      joystickZone.addEventListener('touchstart', (e) => {
+        touchActive = true;
+        const t = e.touches[0];
+        const rect = joystickZone.getBoundingClientRect();
+        startX = rect.left + rect.width / 2;
+        startY = rect.top + rect.height / 2;
+        updateKnob(t.clientX, t.clientY);
+      }, { passive: false });
+
+      window.addEventListener('touchmove', (e) => {
+        if (!touchActive) return;
+        const t = e.touches[0];
+        updateKnob(t.clientX, t.clientY);
+      }, { passive: false });
+
+      window.addEventListener('touchend', () => {
+        if (!touchActive) return;
+        touchActive = false;
+        joystickVector = { x: 0, y: 0 };
+        joystickKnob.style.transform = 'translate(0px, 0px)';
+      });
+
+      function updateKnob(x, y) {
+        const maxDist = 45;
+        let dx = x - startX;
+        let dy = y - startY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > maxDist) {
+          dx = (dx / dist) * maxDist;
+          dy = (dy / dist) * maxDist;
+        }
+        joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+        joystickVector = { x: dx / maxDist, y: dy / maxDist };
+      }
+
+      document.getElementById('btn-touch-jump').addEventListener('click', () => {
+        handleJump();
+      });
+
+      document.getElementById('btn-touch-attack').addEventListener('click', () => {
+        attackWithWeapon();
+      });
+    }
+
+    function handleJumpOrAttack() {
+      // Jika ada zombie dekat, serang! Kalau tidak, lompat
+      const hasZombieNear = zombies.some(z => z.position.distanceTo(player.position) < 3.8);
+      if (hasZombieNear && gameState.inventory.includes('sword')) {
+        attackWithWeapon();
+      } else {
+        handleJump();
+      }
+    }
+
+    function handleJump() {
+      if (!isGrounded || !gameState.isPlaying) return;
+      sfx.playJump();
+      let jumpPower = 9;
+      if (gameState.inventory.includes('super_spring')) {
+        jumpPower *= 1.45; // Lompat super tinggi!
+      }
+      playerVel.y = jumpPower;
+      isGrounded = false;
+    }
+
+    function attackWithWeapon() {
+      sfx.playHit();
+      // Animasi tebas pedang
+      if (playerBody) {
+        playerBody.rotation.y += Math.PI / 2;
+        setTimeout(() => { if (playerBody) playerBody.rotation.y = 0; }, 150);
+      }
+
+      let killedAny = false;
+      zombies.forEach((z, idx) => {
+        if (z.position.distanceTo(player.position) < 4.2) {
+          // Hancurkan zombie
+          scene.remove(z);
+          zombies.splice(idx, 1);
+          killedAny = true;
+          // Hadiah koin bunuh zombie
+          gameState.coins += 25;
+          savePlayerData();
+          showToast('⚔️ Kamu menebas Zombie! +25 Koin!');
+        }
+      });
+
+      if (!killedAny) {
+        showToast('⚔️ Tebasan pedang di udara!');
+      }
+    }
+
+    /* =========================================================
+       LOGIKA BENCANA: TSUNAMI & ZOMBIE
+       ========================================================= */
+
+    // 1. MEMUNCULKAN MENARA TSUNAMI
+    function spawnTsunamiTower() {
+      if (towerGroup) scene.remove(towerGroup);
+      towerGroup = new THREE.Group();
+
+      // Tiang Utama Menara
+      const pillarGeo = new THREE.CylinderGeometry(2, 2.5, 20, 16);
+      const pillarMat = new THREE.MeshLambertMaterial({ color: 0x475569 }); // Besi abu
+      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.y = 8;
+      pillar.castShadow = true;
+      towerGroup.add(pillar);
+
+      // Platform Dek Penyelamatan Atas
+      const deckGeo = new THREE.CylinderGeometry(8, 8, 1, 24);
+      const deckMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b }); // Kuning peringatan
+      const deck = new THREE.Mesh(deckGeo, deckMat);
+      deck.position.y = 17;
+      deck.receiveShadow = true;
+      towerGroup.add(deck);
+
+      // Pagar Pembatas Dek
+      const railGeo = new THREE.TorusGeometry(7.8, 0.25, 8, 24);
+      const railMat = new THREE.MeshLambertMaterial({ color: 0xd97706 });
+      const rail = new THREE.Mesh(railGeo, railMat);
+      rail.rotation.x = Math.PI / 2;
+      rail.position.y = 18.2;
+      towerGroup.add(rail);
+
+      // Tangga Spiral / Rampa Akses Naik ke Atas
+      for (let s = 0; s < 18; s++) {
+        const stepGeo = new THREE.BoxGeometry(3, 0.5, 1.8);
+        const stepMat = new THREE.MeshLambertMaterial({ color: 0x94a3b8 });
+        const step = new THREE.Mesh(stepGeo, stepMat);
+        const angle = s * 0.45;
+        step.position.set(Math.cos(angle) * 3.8, s * 0.95, Math.sin(angle) * 3.8);
+        step.rotation.y = -angle;
+        step.receiveShadow = true;
+        towerGroup.add(step);
+      }
+
+      towerGroup.position.set(0, 0, 0); // Di tengah pulau
+      scene.add(towerGroup);
+    }
+
+    function removeTsunamiTower() {
+      if (towerGroup) {
+        scene.remove(towerGroup);
+        towerGroup = null;
+      }
+    }
+
+    // 2. MEMUNCULKAN ZOMBIE
+    function spawnZombies(count = 6) {
+      clearZombies();
+      for (let i = 0; i < count; i++) {
+        const zGroup = new THREE.Group();
+
+        // Badan Zombie (Baju Robek Ungu Kehijauan)
+        const bodyGeo = new THREE.BoxGeometry(1.1, 1.5, 0.75);
+        const bodyMat = new THREE.MeshLambertMaterial({ color: 0x065f46 }); // Hijau lumut busuk
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = 1.25;
+        body.castShadow = true;
+        zGroup.add(body);
+
+        // Kepala Zombie Hijau Terang
+        const headGeo = new THREE.BoxGeometry(0.85, 0.85, 0.85);
+        const headMat = new THREE.MeshLambertMaterial({ color: 0x22c55e });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.y = 2.4;
+        head.castShadow = true;
+        zGroup.add(head);
+
+        // Tangan Zombie Terentang ke Depan
+        const armGeo = new THREE.BoxGeometry(0.3, 0.3, 1.2);
+        const armMat = new THREE.MeshLambertMaterial({ color: 0x22c55e });
+        const armLeft = new THREE.Mesh(armGeo, armMat);
+        armLeft.position.set(0.65, 1.5, 0.6);
+        zGroup.add(armLeft);
+
+        const armRight = new THREE.Mesh(armGeo, armMat);
+        armRight.position.set(-0.65, 1.5, 0.6);
+        zGroup.add(armRight);
+
+        // Muncul dari pinggir pulau secara melingkar
+        const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+        const dist = 24 + Math.random() * 8;
+        zGroup.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+
+        zGroup.userData = {
+          speed: 3.2 + Math.random() * 1.5,
+          attackCooldown: 0
+        };
+
+        scene.add(zGroup);
+        zombies.push(zGroup);
+      }
+    }
+
+    function clearZombies() {
+      zombies.forEach(z => scene.remove(z));
+      zombies = [];
+    }
+
+    /* =========================================================
+       SISTEM ROULETTE & EVENT TRIGGER
+       ========================================================= */
+    let turnInterval = null;
+
+    function triggerEvent(eventType, callerName = 'Player') {
+      if (gameState.eventActive) return; // tunggu event selesai
+      sfx.init();
+
+      if (eventType.toLowerCase().includes('tsunami')) {
+        gameState.eventActive = 'tsunami';
+        gameState.eventCountdown = 5.0; // 5 detik countdown
+        spawnTsunamiTower();
+        sfx.playAlarm();
+
+        // Notifikasi Alert
+        const alertBox = document.getElementById('event-alert');
+        const alertTitle = document.getElementById('event-title');
+        alertTitle.textContent = `🌊 TSUNAMI DIAKTIFKAN OLEH ${callerName.toUpperCase()}!`;
+        alertBox.classList.add('active');
+
+        showToast(`⚠️ PERINGATAN: Tsunami datang dalam 5 detik! LARI KE MENARA!`);
+
+        // Bot AI merespon: buru-buru lari ke menara
+        bots.forEach(b => {
+          if (b.userData.alive) {
+            b.userData.state = 'run_to_tower';
+            b.userData.targetPos = new THREE.Vector3(0, 17, 0); // Atas menara
+          }
+        });
+
+      } else if (eventType.toLowerCase().includes('zombie')) {
+        gameState.eventActive = 'zombie';
+        gameState.eventCountdown = 20.0; // Durasi serbuan zombie
+        spawnZombies(7);
+        sfx.playAlarm();
+
+        const alertBox = document.getElementById('event-alert');
+        const alertTitle = document.getElementById('event-title');
+        alertTitle.textContent = `🧟 SERBUAN ZOMBIE DIMULAI! (${callerName})`;
+        alertBox.classList.add('active');
+
+        showToast(`⚠️ Awas Zombie! Jangan sampai digigit atau kamu akan terinfeksi!`);
+
+        // Bot panik lari menjauh dari zombie
+        bots.forEach(b => {
+          if (b.userData.alive) {
+            b.userData.state = 'flee_zombies';
+          }
+        });
+      } else {
+        showToast(`Ide "${eventType}" belum dikenali. Coba tulis "tsunami" atau "zombie"!`);
+      }
+    }
+
+    function pickRandomIdeaTurn() {
+      if (!gameState.isPlaying || gameState.eventActive) return;
+
+      const candidates = ['Kamu (Player)'];
+      bots.forEach(b => {
+        if (b.userData.alive) candidates.push(b.userData.name);
+      });
+
+      const selected = candidates[Math.floor(Math.random() * candidates.length)];
+      const roulettePill = document.getElementById('roulette-status');
+      const rouletteText = document.getElementById('roulette-text');
+
+      roulettePill.classList.add('highlight');
+      rouletteText.textContent = `🎲 Giliran Memilih Ide: ${selected}!`;
+
+      setTimeout(() => {
+        roulettePill.classList.remove('highlight');
+      }, 3000);
+
+      if (selected !== 'Kamu (Player)') {
+        // Bot memilih bencana secara otomatis
+        setTimeout(() => {
+          if (!gameState.isPlaying || gameState.eventActive) return;
+          const botIdeas = ['tsunami', 'zombie'];
+          const chosen = botIdeas[Math.floor(Math.random() * botIdeas.length)];
+          triggerEvent(chosen, selected);
+        }, 1800);
+      } else {
+        showToast('🎯 Giliranmu! Ketik ide bencana di kotak input atau klik tombol!');
+      }
+    }
+
+    /* =========================================================
+       UPDATE LOOP GAMEPLAY
+       ========================================================= */
+    let lastTime = 0;
+
+    function gameLoop(time) {
+      requestAnimationFrame(gameLoop);
+      const delta = Math.min(clock.getDelta(), 0.1);
+
+      if (gameState.isPlaying) {
+        updatePlayer(delta);
+        updateBots(delta);
+        updateZombies(delta);
+        updateTsunamiEvent(delta);
+        updateSurvivalStats(delta);
+        updateCamera();
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function updatePlayer(delta) {
+      if (!gameState.isPlaying) return;
+
+      // Hitung arah gerak
+      let moveX = 0;
+      let moveZ = 0;
+
+      if (keys.w) moveZ -= 1;
+      if (keys.s) moveZ += 1;
+      if (keys.a) moveX -= 1;
+      if (keys.d) moveX += 1;
+
+      // Gabungkan dengan joystick jika ada
+      if (Math.abs(joystickVector.x) > 0.1 || Math.abs(joystickVector.y) > 0.1) {
+        moveX = joystickVector.x;
+        moveZ = joystickVector.y;
+      }
+
+      const inputLen = Math.hypot(moveX, moveZ);
+      let baseSpeed = 8.5;
+
+      // Kecepatan ekstra jika memiliki Sepatu Turbo
+      if (gameState.inventory.includes('turbo_shoes')) {
+        baseSpeed *= 1.6;
+      }
+      // Jika terinfeksi zombie parah, jalan lebih lambat
+      if (gameState.infection > 50) {
+        baseSpeed *= 0.65;
+      }
+
+      if (inputLen > 0.05) {
+        const normX = (moveX / inputLen) * baseSpeed;
+        const normZ = (moveZ / inputLen) * baseSpeed;
+
+        player.position.x += normX * delta;
+        player.position.z += normZ * delta;
+
+        // Rotasi hadap gerakan
+        const targetAngle = Math.atan2(normX, normZ);
+        player.rotation.y = targetAngle;
+      }
+
+      // Gravitasi & Lompat
+      playerVel.y -= 24 * delta; // Gravitasi
+      player.position.y += playerVel.y * delta;
+
+      // Deteksi pijakan tanah / menara
+      let groundLevel = 0;
+
+      // Cek apakah di atas menara
+      if (towerGroup && player.position.distanceTo(new THREE.Vector3(0, player.position.y, 0)) < 8.2) {
+        if (player.position.y >= 15.5) {
+          groundLevel = 17; // Dek atas menara
+        } else {
+          // Tangga / ramp bertingkat
+          const heightEstimate = Math.min(17, Math.max(0, (18 - player.position.distanceTo(new THREE.Vector3(0, player.position.y, 0)) * 2)));
+          groundLevel = Math.max(0, heightEstimate);
+        }
+      }
+
+      if (player.position.y <= groundLevel) {
+        player.position.y = groundLevel;
+        playerVel.y = 0;
+        isGrounded = true;
+      }
+
+      // Batasi pulau agar tidak langsung tembus jatuh ke hampa
+      const distFromCenter = Math.hypot(player.position.x, player.position.z);
+      if (distFromCenter > 38 && player.position.y <= 0) {
+        // Jatuh ke laut luar
+        if (player.position.y < -3) {
+          playerTakeDamage(30 * delta, 'Tenggelam di laut lepas!');
+        }
+      }
+    }
+
+    function updateCamera() {
+      if (!player) return;
+      // Smooth Follow Camera
+      const offset = new THREE.Vector3(0, 9, 14);
+      camera.position.lerp(player.position.clone().add(offset), 0.1);
+      camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 1.8, 0)));
+    }
+
+    function updateBots(delta) {
+      let aliveCount = 0;
+
+      bots.forEach(bot => {
+        if (!bot.userData.alive) return;
+        aliveCount++;
+
+        // AI Bot behaviour
+        if (bot.userData.state === 'run_to_tower' && towerGroup) {
+          // Lari ke tengah menara dan naik
+          const target = new THREE.Vector3(0, 17, 0);
+          const dir = target.clone().sub(bot.position);
+          dir.y = 0;
+          if (dir.length() > 0.5) {
+            dir.normalize();
+            bot.position.add(dir.multiplyScalar(bot.userData.speed * delta));
+            bot.rotation.y = Math.atan2(dir.x, dir.z);
+          }
+          // Kenaikan tangga bot
+          if (bot.position.distanceTo(new THREE.Vector3(0, bot.position.y, 0)) < 8.5) {
+            bot.position.y = Math.min(17, bot.position.y + 7 * delta);
+          }
+        } else if (bot.userData.state === 'flee_zombies' && zombies.length > 0) {
+          // Cari zombie terdekat dan lari berlawanan arah
+          let nearestZ = zombies[0];
+          let minDist = 999;
+          zombies.forEach(z => {
+            const d = z.position.distanceTo(bot.position);
+            if (d < minDist) { minDist = d; nearestZ = z; }
+          });
+          if (minDist < 10) {
+            const fleeDir = bot.position.clone().sub(nearestZ.position).normalize();
+            fleeDir.y = 0;
+            bot.position.add(fleeDir.multiplyScalar(bot.userData.speed * delta));
+            bot.rotation.y = Math.atan2(fleeDir.x, fleeDir.z);
+          }
+        } else {
+          // Berkeliling santai di pulau
+          if (Math.random() < 0.015) {
+            const rAngle = Math.random() * Math.PI * 2;
+            const rDist = Math.random() * 22;
+            bot.userData.targetPos = new THREE.Vector3(Math.cos(rAngle) * rDist, 0, Math.sin(rAngle) * rDist);
+          }
+          const diff = bot.userData.targetPos.clone().sub(bot.position);
+          diff.y = 0;
+          if (diff.length() > 0.5) {
+            diff.normalize();
+            bot.position.add(diff.multiplyScalar((bot.userData.speed * 0.6) * delta));
+            bot.rotation.y = Math.atan2(diff.x, diff.z);
+          }
+        }
+
+        // Batasi bot tetap di pulau
+        const distCenter = Math.hypot(bot.position.x, bot.position.z);
+        if (distCenter > 35) {
+          bot.position.multiplyScalar(35 / distCenter);
+        }
+      });
+
+      gameState.botCount = aliveCount;
+      document.getElementById('hud-bots-count').textContent = aliveCount;
+    }
+
+    function updateZombies(delta) {
+      if (zombies.length === 0) return;
+
+      zombies.forEach(z => {
+        // Targetkan pemain atau bot terdekat
+        let target = player.position;
+        let minDist = z.position.distanceTo(player.position);
+
+        bots.forEach(b => {
+          if (b.userData.alive) {
+            const d = z.position.distanceTo(b.position);
+            if (d < minDist) {
+              minDist = d;
+              target = b.position;
+            }
+          }
+        });
+
+        // Bergerak ke arah target
+        const dir = target.clone().sub(z.position);
+        dir.y = 0;
+        if (dir.length() > 0.2) {
+          dir.normalize();
+          z.position.add(dir.multiplyScalar(z.userData.speed * delta));
+          z.rotation.y = Math.atan2(dir.x, dir.z);
+        }
+
+        // Animasi tangan zombie berayun
+        z.position.y = Math.abs(Math.sin(clock.getElapsedTime() * 6)) * 0.2;
+
+        // SERANGAN GIGITAN ZOMBIE KE PEMAIN
+        const distToPlayer = z.position.distanceTo(player.position);
+        if (distToPlayer < 1.7) {
+          z.userData.attackCooldown = (z.userData.attackCooldown || 0) - delta;
+          if (z.userData.attackCooldown <= 0) {
+            zombieBitePlayer();
+            z.userData.attackCooldown = 1.2; // Cooldown gigit 1.2s
+          }
+        }
+
+        // Gigitan ke Bot
+        bots.forEach(b => {
+          if (b.userData.alive && z.position.distanceTo(b.position) < 1.6) {
+            // Bot tergigit dan berubah jadi zombie!
+            b.userData.alive = false;
+            scene.remove(b);
+            showToast(`🧟 ${b.userData.name} digigit zombie dan gugur!`);
+          }
+        });
+      });
+    }
+
+    // EFEK GIGITAN ZOMBIE KE KAMERA
+    function zombieBitePlayer() {
+      sfx.playBite();
+
+      // Cek apakah ada Shield
+      if (gameState.inventory.includes('shield') && (gameState.shieldCharges || 3) > 0) {
+        gameState.shieldCharges = (gameState.shieldCharges || 3) - 1;
+        showToast(`🛡️ Shield menahan gigitan zombie! (${gameState.shieldCharges}x tersisa)`);
+        return;
+      }
+
+      // Kena gigit!
+      gameState.hp -= 25;
+      gameState.infection += 35; // Tambah infeksi
+
+      // Efek Visual Kamera Berubah Hijau
+      const tint = document.getElementById('zombie-screen-tint');
+      tint.classList.add('infected');
+      setTimeout(() => {
+        if (gameState.infection < 70) tint.classList.remove('infected');
+      }, 700);
+
+      showToast('⚠️ KAMU DIGIGIT ZOMBIE! Pandangan kamera menjadi hijau!');
+
+      // Cek apakah berubah jadi zombie dan mati
+      if (gameState.hp <= 0 || gameState.infection >= 100) {
+        playerTurnIntoZombie();
+      }
+
+      updateHUDStats();
+    }
+
+    function playerTurnIntoZombie() {
+      gameState.isZombie = true;
+      // Ubah visual karakter jadi hijau zombie
+      if (playerBody) playerBody.material.color.setHex(0x065f46);
+      if (playerHead) playerHead.material.color.setHex(0x22c55e);
+
+      triggerGameOver('🧟 Kamu Telah Berubah Menjadi Zombie!', 'Kamu digigit berkali-kali oleh zombie dan terinfeksi racun virus hijau!');
+    }
+
+    // UPDATE EVENT TSUNAMI (5 DETIK COUNTDOWN & AIR LAUT NAIK)
+    function updateTsunamiEvent(delta) {
+      if (gameState.eventActive !== 'tsunami') return;
+
+      const alertBox = document.getElementById('event-alert');
+      const timerEl = document.getElementById('event-timer');
+
+      if (gameState.eventCountdown > 0) {
+        gameState.eventCountdown -= delta;
+        timerEl.textContent = `${Math.max(0, gameState.eventCountdown).toFixed(1)}s`;
+
+        if (gameState.eventCountdown <= 0) {
+          // TSUNAMI MENERJANG SEKARANG!
+          sfx.playTsunamiWave();
+          document.getElementById('event-title').textContent = '🌊 GELOMBANG TSUNAMI RAKSASA MENERJANG!';
+          timerEl.textContent = 'BERTAHANLAH DI MENARA!';
+        }
+      } else {
+        // Ombak tsunami naik hingga ketinggian y = 13 (menutupi seluruh daratan pulau setinggi y = 0..6)
+        if (waterMesh.position.y < 13) {
+          waterMesh.position.y += 18 * delta;
+        }
+
+        // Cek siapa yang tenggelam di bawah air laut
+        const waterHeight = waterMesh.position.y;
+
+        // Cek pemain: jika di bawah air laut, kena efek tenggelam!
+        if (player.position.y < waterHeight) {
+          document.getElementById('water-screen-tint').classList.add('drowning');
+          playerTakeDamage(45 * delta, 'Tersapu ombak Tsunami karena tidak di atas menara!');
+        } else {
+          document.getElementById('water-screen-tint').classList.remove('drowning');
+        }
+
+        // Cek bot: jika bot di bawah air, mereka tersapu tsunami
+        bots.forEach(b => {
+          if (b.userData.alive && b.position.y < waterHeight) {
+            b.userData.alive = false;
+            scene.remove(b);
+            showToast(`🌊 ${b.userData.name} tersapu gelombang Tsunami!`);
+          }
+        });
+
+        // Setelah 6 detik menerjang, tsunami surut kembali normal
+        if (waterMesh.position.y >= 13) {
+          setTimeout(() => {
+            endTsunamiEvent();
+          }, 3500);
+        }
+      }
+    }
+
+    function endTsunamiEvent() {
+      if (gameState.eventActive !== 'tsunami') return;
+      showToast('🎉 Tsunami telah surut! Kamu berhasil selamat dan dapat +50 Koin!');
+      gameState.coins += 50;
+      savePlayerData();
+
+      // Kembalikan air normal
+      waterMesh.position.y = -4;
+      document.getElementById('water-screen-tint').classList.remove('drowning');
+      document.getElementById('event-alert').classList.remove('active');
+      gameState.eventActive = null;
+
+      // Hapus menara untuk tantangan berikutnya
+      removeTsunamiTower();
+
+      // Bot kembali ke keadaan santai
+      bots.forEach(b => {
+        if (b.userData.alive) {
+          b.userData.state = 'idle';
+          b.position.y = 0;
+        }
+      });
+    }
+
+    function playerTakeDamage(amount, reason) {
+      gameState.hp -= amount;
+      if (gameState.hp <= 0) {
+        gameState.hp = 0;
+        triggerGameOver('💀 KAMU GUGUR!', reason);
+      }
+      updateHUDStats();
+    }
+
+    function updateSurvivalStats(delta) {
+      gameState.survivalTime += delta;
+      document.getElementById('hud-survival-time').textContent = `${Math.floor(gameState.survivalTime)}s`;
+
+      // Hadiah koin bertahan hidup setiap 8 detik
+      if (Math.floor(gameState.survivalTime) > 0 && Math.floor(gameState.survivalTime) % 8 === 0 && Math.random() < 0.05) {
+        gameState.coins += 5;
+        savePlayerData();
+      }
+    }
+
+    function updateHUDStats() {
+      const hpPercent = Math.max(0, Math.min(100, gameState.hp));
+      document.getElementById('hud-hp-text').textContent = `${Math.floor(hpPercent)}%`;
+      const hpBar = document.getElementById('hud-hp-bar');
+      hpBar.style.width = `${hpPercent}%`;
+      if (hpPercent < 30) {
+        hpBar.style.background = '#ef4444';
+      } else {
+        hpBar.style.background = 'linear-gradient(90deg, #ef4444, #22c55e)';
+      }
+    }
+
+    function triggerGameOver(title, desc) {
+      gameState.isPlaying = false;
+      document.getElementById('gameover-title').textContent = title;
+      document.getElementById('gameover-desc').textContent = desc;
+      gameoverScreen.classList.remove('hidden');
+      hudContainer.style.display = 'none';
+      document.getElementById('zombie-screen-tint').classList.remove('infected');
+      document.getElementById('water-screen-tint').classList.remove('drowning');
+
+      if (turnInterval) clearInterval(turnInterval);
+    }
+
+    /* =========================================================
+       START / RESTART / MENU NAVIGATION
+       ========================================================= */
+    function startGame() {
+      sfx.init();
+      sfx.playClick();
+
+      mainMenu.classList.add('hidden');
+      shopModal.classList.add('hidden');
+      gameoverScreen.classList.add('hidden');
+      hudContainer.style.display = 'flex';
+
+      // Reset State
+      gameState.isPlaying = true;
+      gameState.isZombie = false;
+      gameState.hp = 100;
+      gameState.infection = 0;
+      gameState.survivalTime = 0;
+      gameState.shieldCharges = 3;
+      gameState.eventActive = null;
+
+      // Reset Player visual & posisi
+      if (player) {
+        player.position.set(0, 0, 8);
+        if (playerBody) playerBody.material.color.setHex(0x2563eb);
+        if (playerHead) playerHead.material.color.setHex(0xfde047);
+      }
+
+      // Reset Air & Tower
+      if (waterMesh) waterMesh.position.y = -4;
+      removeTsunamiTower();
+      clearZombies();
+      createBots();
+
+      document.getElementById('zombie-screen-tint').classList.remove('infected');
+      document.getElementById('water-screen-tint').classList.remove('drowning');
+      document.getElementById('event-alert').classList.remove('active');
+
+      renderInventoryHUD();
+      updateHUDStats();
+
+      showToast('Game dimulai! Bersiaplah bertahan dari Tsunami & Zombie!');
+
+      // Jadwalkan pengundian roulette ide secara berkala
+      if (turnInterval) clearInterval(turnInterval);
+      turnInterval = setInterval(() => {
+        if (gameState.isPlaying && !gameState.eventActive) {
+          pickRandomIdeaTurn();
+        }
+      }, 14000);
+    }
+
+    function backToMainMenu() {
+      sfx.init();
+      sfx.playClick();
+      gameState.isPlaying = false;
+      if (turnInterval) clearInterval(turnInterval);
+
+      hudContainer.style.display = 'none';
+      gameoverScreen.classList.add('hidden');
+      shopModal.classList.add('hidden');
+      mainMenu.classList.remove('hidden');
+
+      document.getElementById('zombie-screen-tint').classList.remove('infected');
+      document.getElementById('water-screen-tint').classList.remove('drowning');
+      removeTsunamiTower();
+      clearZombies();
+    }
+
+    // Proteksi sebelum menutup halaman saat bermain (Standar Kevin Games)
+    window.addEventListener('beforeunload', (e) => {
+      if (gameState.isPlaying) {
+        e.preventDefault();
+        e.returnValue = 'Game sedang berlangsung! Yakin ingin keluar?';
+      }
+    });
+
+    // EVENT LISTENERS TOMBOL
+    document.getElementById('btn-play').addEventListener('click', startGame);
+    document.getElementById('btn-restart').addEventListener('click', startGame);
+    document.getElementById('btn-hud-back').addEventListener('click', backToMainMenu);
+    document.getElementById('btn-gameover-menu').addEventListener('click', backToMainMenu);
+
+    // Shop Buttons
+    document.getElementById('btn-open-shop').addEventListener('click', () => {
+      sfx.init();
+      sfx.playClick();
+      renderShop();
+      shopModal.classList.remove('hidden');
+    });
+    document.getElementById('btn-close-shop').addEventListener('click', () => {
+      sfx.init();
+      sfx.playClick();
+      shopModal.classList.add('hidden');
+    });
+    document.getElementById('btn-gameover-shop').addEventListener('click', () => {
+      sfx.init();
+      sfx.playClick();
+      renderShop();
+      gameoverScreen.classList.add('hidden');
+      shopModal.classList.remove('hidden');
+    });
+
+    // Submit Ide Bencana
+    function submitIdea() {
+      const input = document.getElementById('input-idea');
+      const val = input.value.trim();
+      if (!val) {
+        showToast('Ketik idemu dulu, misal "tsunami" atau "zombie"!');
+        return;
+      }
+      triggerEvent(val, 'Kamu');
+      input.value = '';
+    }
+
+    document.getElementById('btn-submit-idea').addEventListener('click', submitIdea);
+    document.getElementById('input-idea').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitIdea();
+    });
+
+    // Tombol Pintas Ide
+    document.querySelectorAll('.btn-quick-idea').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idea = btn.dataset.idea;
+        if (idea === 'random') {
+          pickRandomIdeaTurn();
+        } else {
+          triggerEvent(idea, 'Kamu');
+        }
+      });
+    });
+
+    // Jalankan inisialisasi awal saat load
+    window.addEventListener('DOMContentLoaded', () => {
+      init3D();
+      savePlayerData();
+      renderShop();
+      gameLoop();
+    });
+  </script>
+</body>
+</html>

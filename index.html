@@ -64,6 +64,18 @@
     content: ""; position: absolute; inset: 0;
     background: linear-gradient(180deg, rgba(14,17,34,.05), rgba(14,17,34,.42));
   }
+  .sampul-survives {
+    background: linear-gradient(135deg, #091a3e 0%, #1e40af 50%, #0284c7 100%);
+  }
+  .sampul-survives .ikon-survives {
+    position: relative; z-index: 1; font-size: 78px;
+    filter: drop-shadow(0 8px 16px rgba(0,0,0,.5));
+    animation: floatIcon 3s ease-in-out infinite alternate;
+  }
+  @keyframes floatIcon {
+    0% { transform: translateY(-4px) scale(0.98); }
+    100% { transform: translateY(4px) scale(1.02); }
+  }
   .sampul .kuda {
     position: relative; z-index: 1; font-size: 96px; color: #141021;
     text-shadow: 0 3px 0 rgba(255,255,255,.25), 0 14px 26px rgba(0,0,0,.5);
@@ -113,6 +125,15 @@
   </section>
 
   <main class="grid">
+    <a class="kartu" href="survives-ideas/index.html">
+      <div class="sampul sampul-survives"><div class="ikon-survives">&#127965;&#65039;</div></div>
+      <div class="isi">
+        <h2>Survives Ideas <span class="status status-main">BARU &bull; 3D</span></h2>
+        <p>Game survival 3D online! Tulis ide bencana (Tsunami & Zombie) yang diundi bersama bot. Kunjungi Shop perlengkapan dan bertahanlah!</p>
+        <div class="tombol">Main Sekarang &#9654;</div>
+      </div>
+    </a>
+
     <a class="kartu" href="catur/index.html">
       <div class="sampul sampul-catur"><div class="kuda">&#9822;</div></div>
       <div class="isi">
