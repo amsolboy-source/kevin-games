@@ -464,10 +464,16 @@ class ChessterApp {
 
     // Otherwise, select piece if it belongs to player
     if (clickedPiece && clickedPiece.color === this.playerColor) {
+      // Mengklik bidak yang sudah terpilih: tidak ada perubahan tampilan,
+      // lewati render ulang papan penuh (menghindari kedip/getar di HP)
+      if (this.selectedSquare && this.selectedSquare.r === r && this.selectedSquare.c === c) return;
       this.selectedSquare = { r, c };
       this.legalMovesForSelected = this.game.getLegalMoves({ r, c });
       this.renderBoard();
     } else {
+      // Klik petak kosong/musuh tanpa pilihan aktif: tidak ada yang berubah,
+      // lewati render ulang papan penuh (menghindari kedip/getar di HP)
+      if (!this.selectedSquare) return;
       this.selectedSquare = null;
       this.legalMovesForSelected = [];
       this.renderBoard();
@@ -1138,9 +1144,13 @@ class ChessterApp {
     }
 
     if (clickedPiece && clickedPiece.color === 'w') {
+      // Sama seperti arena: klik bidak yang sama / klik kosong tanpa pilihan
+      // tidak perlu render ulang papan penuh (menghindari kedip/getar di HP)
+      if (this.trainingSelectedSquare && this.trainingSelectedSquare.r === r && this.trainingSelectedSquare.c === c) return;
       this.trainingSelectedSquare = { r, c };
       this.renderTrainingBoard();
     } else {
+      if (!this.trainingSelectedSquare) return;
       this.trainingSelectedSquare = null;
       this.renderTrainingBoard();
     }

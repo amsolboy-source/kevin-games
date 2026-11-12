@@ -38,6 +38,7 @@
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -48,6 +49,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
+  overscroll-behavior-y: none;
 }
 
 /* Scrollbar */
@@ -714,6 +716,11 @@ body {
   justify-content: center;
   cursor: pointer;
   transition: background-color 0.15s ease;
+  touch-action: manipulation;
+}
+
+button {
+  touch-action: manipulation;
 }
 
 .square.light {
